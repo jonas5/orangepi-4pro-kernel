@@ -1,0 +1,366 @@
+## Makefile entries for Orange Pi 4 Pro / Allwinner A733 (sun60iw2)
+## These entries must be added to the relevant Kconfig and Makefile locations
+## in the Linux kernel source tree. Listed by subsystem.
+
+================================================================================
+1. arch/arm64/configs/orangepi_4pro_defconfig
+================================================================================
+
+  Simply place the defconfig file at:
+    arch/arm64/configs/orangepi_4pro_defconfig
+
+  No Makefile change needed; Kbuild picks it up automatically.
+
+================================================================================
+2. Device Tree
+================================================================================
+
+  Add DT source:
+    arch/arm64/boot/dts/allwinner/sun60i-a733-orangepi-4-pro.dts
+
+  If a shared dtsi exists, reference it:
+    arch/arm64/boot/dts/allwinner/sun60i-a733.dtsi
+
+  No Makefile change needed; allwinner DTs are built via the wildcard rule
+  in arch/arm64/boot/dts/allwinner/Makefile (typically):
+    dtb-$(CONFIG_ARCH_SUNXI) += sun60i-a733-orangepi-4-pro.dtb
+
+  If the board is not in the wildcard, add explicitly:
+    dtb-$(CONFIG_ARCH_SUNXI) += sun60i-a733-orangepi-4-pro.dtb
+
+================================================================================
+3. CCU (Clock Control Unit)
+================================================================================
+
+  drivers/clk/sunxi-ng/Makefile:
+
+    # Allwinner sun60iw2 A733 CCU
+    obj-$(CONFIG_AW_SUN60IW2_CCU)    += sun60iw2-ccu.o
+    obj-$(CONFIG_AW_SUN60IW2_R_CCU)  += sun60iw2-r-ccu.o
+
+================================================================================
+4. Pin Control
+================================================================================
+
+  drivers/pinctrl/sunxi/Makefile:
+
+    # Allwinner sun60iw2 pin control
+    obj-$(CONFIG_AW_PINCTRL_SUN60IW2) += pinctrl-sun60iw2.o
+
+================================================================================
+5. MMC (SD / eMMC)
+================================================================================
+
+  drivers/mmc/host/Makefile:
+
+    # Allwinner sun60iw2 MMC host controller
+    obj-$(CONFIG_MMC_SUNXI) += sunxi-mmc-new.o
+
+  Note: CONFIG_MMC_SUNXI is a generic Kconfig symbol shared across Allwinner
+  SoCs. The driver source (sunxi-mmc.c / sunxi-mmc-new.c) handles multiple
+  SoC variants via of_device_id matching. No extra Makefile entry is needed
+  beyond CONFIG_MMC_SUNXI=y in the defconfig.
+
+================================================================================
+6. Ethernet (GMAC / STMMAC)
+================================================================================
+
+  drivers/net/ethernet/stmicro/stmmac/Makefile:
+
+    obj-$(CONFIG_DWMAC_SUN8I) += dwmac-sun8i.o
+
+  No additional entry is needed beyond CONFIG_SUN60I_GMAC=y and
+  CONFIG_STMMAC_ETH=y in the defconfig, as the sun60i GMAC glue layer
+  is compiled as part of the stmmac platform driver.
+
+================================================================================
+7. USB (XHCI / DWC3)
+================================================================================
+
+  drivers/usb/dwc3/Makefile:
+
+    obj-$(CONFIG_USB_DWC3)             += dwc3.o
+    obj-$(CONFIG_USB_DWC3_OF_SIMPLE)   += dwc3-of-simple.o
+
+  drivers/usb/host/Makefile:
+
+    obj-$(CONFIG_USB_XHCI_PLATFORM) += xhci-platform.o
+    obj-$(CONFIG_USB_EHCI_HCD_PLATFORM) += ehci-platform.o
+    obj-$(CONFIG_USB_OHCI_HCD_PLATFORM) += ohci-platform.o
+
+  drivers/phy/allwinner/Makefile:
+
+    # Allwinner sun60iw2 USB / PCIe PHY
+    phy-$(CONFIG_PHY_SUN60I_USB)   += phy-sun60i-usb.o
+    phy-$(CONFIG_PHY_SUN60I_USB3)  += phy-sun60i-usb3.o
+    phy-$(CONFIG_PHY_SUN60I_PCIE)  += phy-sun60i-pcie.o
+
+================================================================================
+8. PCIe
+================================================================================
+
+  drivers/pci/controller/Makefile:
+
+    obj-$(CONFIG_PCIE_SUN60IW2) += pcie-sun60iw2.o
+
+================================================================================
+9. DRM (Display)
+================================================================================
+
+  drivers/gpu/drm/allwinner/Makefile:
+
+    obj-$(CONFIG_DRM_SUN60I)       += sun60i-drm.o
+    obj-$(CONFIG_DRM_SUN60I_DE)    += sun60i-de.o
+    obj-$(CONFIG_DRM_SUN60I_TCON)  += sun60i-tcon.o
+    obj-$(CONFIG_DRM_SUN60I_HDMI)  += sun60i-hdmi.o
+
+  If using PowerVR GPU:
+    drivers/gpu/drm/img/pvr/Makefile:
+      obj-$(CONFIG_DRM_IMG_PVR) += pvr_drv.o
+
+================================================================================
+10. Sound (ALSA / ASoC)
+================================================================================
+
+  sound/soc/sunxi/Makefile:
+
+    # Allwinner sun60iw2 ASoC
+    obj-$(CONFIG_SND_SUN60I_SOC)           += sun60i-soc-acpi.o
+    obj-$(CONFIG_SND_SOC_SUN60I_I2S)       += sun60i-i2s.o
+    obj-$(CONFIG_SND_SOC_SUN60I_HDMI)      += sun60i-hdmi.o
+    obj-$(CONFIG_SND_SOC_SUN60I_SPDIF)     += sun60i-spdif.o
+    obj-$(CONFIG_SND_SOC_AW_SUN60IW2_DAI)  += sun60iw2-dai.o
+    obj-$(CONFIG_SND_SOC_AW_SUN60IW2_DMA)  += sun60iw2-pcm-dma.o
+    obj-$(CONFIG_SND_SOC_AW_SUN60IW2_PCM)  += sun60iw2-pcm.o
+
+  If using the AW codec wrapper:
+    sound/soc/codecs/Makefile:
+      obj-$(CONFIG_SND_SOC_AW_CODEC) += aw-sun60iw2-codec.o
+
+  For the ES8389 codec:
+    sound/soc/codecs/Makefile:
+      obj-$(CONFIG_SND_SOC_ES8389) += es8389.o
+
+================================================================================
+11. Crypto (CE - Crypto Engine)
+================================================================================
+
+  drivers/crypto/allwinner/Makefile:
+
+    obj-$(CONFIG_AW_CE)              += sun60i-ce.o
+    obj-$(CONFIG_CRYPTO_SUN6I_SSL)   += sun60i-ss.o
+
+================================================================================
+12. Watchdog
+================================================================================
+
+  drivers/watchdog/Makefile:
+
+    obj-$(CONFIG_SUNXI_WATCHDOG) += sunxi_wdt.o
+
+================================================================================
+13. GPIO
+================================================================================
+
+  drivers/gpio/Makefile:
+
+    obj-$(CONFIG_GPIO_SUN60I) += gpio-sun60i.o
+
+================================================================================
+14. Thermal
+================================================================================
+
+  drivers/thermal/Makefile:
+
+    # Allwinner sun60iw2 thermal
+    obj-$(CONFIG_SUN60I_THERMAL)    += sun60i-thermal.o
+    obj-$(CONFIG_SUN60I_THERMAL_DT) += sun60i-thermal-dt.o
+    obj-$(CONFIG_SUN60I_TR_THERMAL) += sun60i-tr-thermal.o
+
+================================================================================
+15. IIO (GPADC - ADC)
+================================================================================
+
+  drivers/iio/adc/Makefile:
+
+    obj-$(CONFIG_SUN60I_GPADC) += sun60i-gpadc.o
+
+================================================================================
+16. SPI
+================================================================================
+
+  drivers/spi/Makefile:
+
+    obj-$(CONFIG_SPI_SUNXI)     += spi-sunxi.o
+    obj-$(CONFIG_SPI_SUN60IW2)  += spi-sun60iw2.o
+
+  For MTD SPI NOR (MTD_M25P80):
+    drivers/mtd/devices/Makefile:
+      obj-$(CONFIG_MTD_M25P80) += m25p80.o
+    drivers/spi/Makefile:
+      obj-$(CONFIG_SPI_SUNXI) += spi-sunxi.o
+
+================================================================================
+17. I2C
+================================================================================
+
+  drivers/i2c/busses/Makefile:
+
+    obj-$(CONFIG_I2C_SUNXI)  += i2c-sunxi.o
+    obj-$(CONFIG_I2C_SUN6I)  += i2c-sun6i.o
+
+================================================================================
+18. PWM
+================================================================================
+
+  drivers/pwm/Makefile:
+
+    obj-$(CONFIG_PWM_SUNXI)     += pwm-sunxi.o
+    obj-$(CONFIG_PWM_SUN60I)    += pwm-sun60i.o
+    obj-$(CONFIG_PWM_SUN60I_BACKLIGHT) += pwm-sun60i-backlight.o
+
+================================================================================
+19. RTC
+================================================================================
+
+  drivers/rtc/Makefile:
+
+    obj-$(CONFIG_RTC_DRV_SUN6I)      += rtc-sun6i.o
+    obj-$(CONFIG_RTC_DRV_SUNXI)      += rtc-sunxi.o
+    obj-$(CONFIG_RTC_DRV_SUN6I_ALARM) += rtc-sun6i-alarm.o
+
+================================================================================
+20. DMA Engine
+================================================================================
+
+  drivers/dma/sunxi/Makefile:
+
+    obj-$(CONFIG_DMA_SUN60I) += sun60i-dma.o
+
+================================================================================
+21. Mailbox
+================================================================================
+
+  drivers/mailbox/Makefile:
+
+    obj-$(CONFIG_SUN60I_MAILBOX) += sun60i-mailbox.o
+
+================================================================================
+22. HWspinlock
+================================================================================
+
+  drivers/hwspinlock/Makefile:
+
+    obj-$(CONFIG_SUN60I_HWSPINLOCK) += sun60i-hwspinlock.o
+
+================================================================================
+23. NPU (Neural Processing Unit)
+================================================================================
+
+  drivers/misc/Makefile (or drivers/npu/Makefile if a dedicated subdir exists):
+
+    obj-$(CONFIG_AW_NPU) += aw-npu.o
+
+  Note: The NPU driver may be out-of-tree. If so, place the source at:
+    drivers/misc/aw-npu.c
+  or
+    drivers/npu/aw-npu.c
+  and add the obj- line above to the corresponding Makefile.
+
+  Add Kconfig entry in drivers/misc/Kconfig (or drivers/npu/Kconfig):
+
+    config AW_NPU
+        bool "Allwinner NPU support"
+        default y
+        help
+          Enable support for the Allwinner Neural Processing Unit
+          found on the sun60iw2 (A733) SoC.
+
+================================================================================
+24. Reset Controller (if needed)
+================================================================================
+
+  drivers/reset/Makefile:
+
+    obj-$(CONFIG_RESET_SUN60IW2) += reset-sun60iw2.o
+
+================================================================================
+25. Power Supply / Charger
+================================================================================
+
+  drivers/power/supply/Makefile:
+
+    obj-$(CONFIG_BATTERY_SUNXI)  += battery-sunxi.o
+    obj-$(CONFIG_CHARGER_SUNXI)  += charger-sunxi.o
+
+================================================================================
+26. Voltage Regulator
+================================================================================
+
+  drivers/regulator/Makefile:
+
+    obj-$(CONFIG_REGULATOR_SUN60I)      += regulator-sun60i.o
+    obj-$(CONFIG_REGULATOR_AW_SUN60IW2) += regulator-aw-sun60iw2.o
+
+================================================================================
+27. Interconnect (NoC)
+================================================================================
+
+  drivers/interconnect/sunxi/Makefile (create dir if missing):
+
+    obj-$(CONFIG_INTERCONNECT_SUN60IW2) += interconnect-sun60iw2.o
+
+  Add Kconfig entry in drivers/interconnect/Kconfig:
+
+    config INTERCONNECT_SUN60IW2
+        bool "Allwinner sun60iw2 interconnect support"
+        depends on ARCH_SUN60IW2
+        default ARCH_SUN60IW2
+        help
+          Support for the Allwinner sun60iw2 network-on-chip
+          interconnect bus fabric.
+
+================================================================================
+28. Timer / Clocksource
+================================================================================
+
+  drivers/clocksource/Makefile:
+
+    obj-$(CONFIG_TIMER_SUN60I)    += timer-sun60i.o
+    obj-$(CONFIG_TIMER_SUN6I_TWD) += timer-sun6i-twd.o
+
+================================================================================
+29. Hardware Monitoring
+================================================================================
+
+  drivers/hwmon/Makefile:
+
+    obj-$(CONFIG_SENSORS_SUN60I) += sun60i-hwmon.o
+
+================================================================================
+NOTES
+================================================================================
+
+  - Each CONFIG_ symbol above must correspond to an entry in the
+    appropriate Kconfig file (usually in the same directory as the Makefile).
+
+  - The defconfig file goes to:
+      arch/arm64/configs/orangepi_4pro_defconfig
+
+  - The boot script is compiled with mkimage before use:
+      mkimage -C none -A arm64 -T script -d boot.cmd boot.scr
+
+  - Device tree blob path (as referenced in boot.cmd):
+      /boot/dtb/allwinner/sun60i-a733-orangepi-4-pro.dtb
+
+  - Some symbols (e.g. MMC_SUNXI, STMMAC_ETH, DWMAC_SUN8I) are shared
+    across multiple Allwinner SoCs. The sun60iw2-specific behavior is
+    selected at runtime via of_device_id matching in the driver source.
+
+  - Out-of-tree drivers (NPU, AIC8800 WiFi, ES8389 codec, etc.) need
+    their source code placed in the appropriate kernel source directory
+    or built as external modules.
+
+  - Makefile lines marked with =o or =m produce loadable modules.
+    Use =y for built-in drivers required at early boot (eMMC, console,
+    root filesystem support, display output).

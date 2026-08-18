@@ -1,0 +1,10 @@
+verbosity=1
+console=both
+fdtfile=sun60i-a733-orangepi-4-pro.dtb
+kernel_addr_r=0x40080000
+ramdisk_addr_r=0x44000000
+fdt_addr_r=0x4FA00000
+loadaddr=0x45000000
+overlay_prefix=sun60i-a733
+rootdev=PARTUUID=auto
+rootfstype=ext4

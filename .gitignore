@@ -1,0 +1,15 @@
+# Build output
+*.o
+*.o.cmd
+*.ko
+*.ko.cmd
+*.a
+*.a.cmd
+*.so
+*.so.cmd
+
+# Compiled boot script (binary)
+boot/boot.scr
+
+# Kernel build directory
+linux-7.1.5/

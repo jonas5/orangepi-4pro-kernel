@@ -1,0 +1,17 @@
+/* SPDX-License-Identifier: (GPL-2.0-or-later OR MIT) */
+/*
+ * Device Tree binding constants for Allwinner A733 thermal sensor
+ */
+
+#ifndef _DT_BINDINGS_THERMAL_SUN60I_A733_H
+#define _DT_BINDINGS_THERMAL_SUN60I_A733_H
+
+#define SUN60I_THERMAL_ACTIVE_LOW	0
+#define SUN60I_THERMAL_ACTIVE_HIGH	1
+
+#define SUN60I_THERMAL_TRIP_PASSIVE	0
+#define SUN60I_THERMAL_TRIP_ACTIVE	1
+#define SUN60I_THERMAL_TRIP_HOT	2
+#define SUN60I_THERMAL_TRIP_CRITICAL	3
+
+#endif /* _DT_BINDINGS_THERMAL_SUN60I_A733_H */
