@@ -25,7 +25,7 @@ echo ""
 # ------------------------------------------------------------------
 # 1. Device Tree Source / Include
 # ------------------------------------------------------------------
-echo "[1/8] Installing Device Tree files..."
+echo "[1/9] Installing Device Tree files..."
 mkdir -p "$KERNEL_SRC/arch/arm64/boot/dts/allwinner"
 cp "$SCRIPT_DIR/dts/sun60i-a733.dtsi" \
    "$KERNEL_SRC/arch/arm64/boot/dts/allwinner/sun60i-a733.dtsi"
@@ -46,7 +46,7 @@ fi
 # ------------------------------------------------------------------
 # 2. DT binding headers
 # ------------------------------------------------------------------
-echo "[2/8] Installing DT binding headers..."
+echo "[2/9] Installing DT binding headers..."
 mkdir -p "$KERNEL_SRC/include/dt-bindings/clock"
 mkdir -p "$KERNEL_SRC/include/dt-bindings/gpio"
 mkdir -p "$KERNEL_SRC/include/dt-bindings/thermal"
@@ -62,7 +62,7 @@ cp "$SCRIPT_DIR/dts/include/dt-bindings/thermal/sun60i-a733-thermal.h" \
 # ------------------------------------------------------------------
 # 3. CCU (Clock Control Unit)
 # ------------------------------------------------------------------
-echo "[3/8] Installing CCU driver..."
+echo "[3/9] Installing CCU driver..."
 mkdir -p "$KERNEL_SRC/drivers/clk/sunxi-ng"
 cp "$SCRIPT_DIR/dts/src/clk/clk-sun60i-a733.c" \
    "$KERNEL_SRC/drivers/clk/sunxi-ng/"
@@ -78,7 +78,7 @@ fi
 # ------------------------------------------------------------------
 # 4. Pin Control
 # ------------------------------------------------------------------
-echo "[4/8] Installing pinctrl driver..."
+echo "[4/9] Installing pinctrl driver..."
 mkdir -p "$KERNEL_SRC/drivers/pinctrl/sunxi"
 cp "$SCRIPT_DIR/dts/src/pinctrl/pinctrl-sun20i-a733.c" \
    "$KERNEL_SRC/drivers/pinctrl/sunxi/"
@@ -94,7 +94,7 @@ fi
 # ------------------------------------------------------------------
 # 5. MMC
 # ------------------------------------------------------------------
-echo "[5/8] Installing MMC host driver..."
+echo "[5/9] Installing MMC host driver..."
 mkdir -p "$KERNEL_SRC/drivers/mmc/host"
 cp "$SCRIPT_DIR/dts/src/mmc/sun20i-d1-mmc.c" \
    "$KERNEL_SRC/drivers/mmc/host/"
@@ -104,7 +104,7 @@ cp "$SCRIPT_DIR/dts/src/mmc/sun20i-d1-mmc.h" \
 # ------------------------------------------------------------------
 # 6. PHY drivers
 # ------------------------------------------------------------------
-echo "[6/8] Installing PHY drivers..."
+echo "[6/9] Installing PHY drivers..."
 mkdir -p "$KERNEL_SRC/drivers/phy/allwinner"
 cp "$SCRIPT_DIR/dts/src/phy/phy-sun60i-serdes.c" \
    "$KERNEL_SRC/drivers/phy/allwinner/"
@@ -116,7 +116,7 @@ cp "$SCRIPT_DIR/dts/src/phy/phy-sun60i-pcie.c" \
 # ------------------------------------------------------------------
 # 7. DRM / Display
 # ------------------------------------------------------------------
-echo "[7/8] Installing display drivers..."
+echo "[7/9] Installing display drivers..."
 mkdir -p "$KERNEL_SRC/drivers/gpu/drm/sun4i"
 cp "$SCRIPT_DIR/dts/src/drm/sun60i-de.c" \
    "$KERNEL_SRC/drivers/gpu/drm/sun4i/"
@@ -130,7 +130,7 @@ cp "$SCRIPT_DIR/dts/src/drm/sun60i-drm.c" \
 # ------------------------------------------------------------------
 # 8. Remaining drivers
 # ------------------------------------------------------------------
-echo "[8/8] Installing remaining drivers..."
+echo "[8/9] Installing remaining drivers..."
 
 # Ethernet
 mkdir -p "$KERNEL_SRC/drivers/net/ethernet/stmicro/stmmac"
@@ -156,20 +156,37 @@ cp "$SCRIPT_DIR/dts/src/crypto/sun60i-ce.c" \
    "$KERNEL_SRC/drivers/crypto/allwinner/"
 
 # Sound
-mkdir -p "$KERNEL_SRC/sound/soc/allwinner"
+mkdir -p "$KERNEL_SRC/sound/soc/sunxi"
 cp "$SCRIPT_DIR/dts/src/sound/sun60i-audio.c" \
-   "$KERNEL_SRC/sound/soc/allwinner/"
+   "$KERNEL_SRC/sound/soc/sunxi/"
 
 # Defconfig
 mkdir -p "$KERNEL_SRC/arch/arm64/configs"
 cp "$SCRIPT_DIR/dts/orangepi_4pro_defconfig" \
    "$KERNEL_SRC/arch/arm64/configs/"
 
+# ------------------------------------------------------------------
+# 9. Makefile / Kconfig entries
+# ------------------------------------------------------------------
+echo "[9/9] Adding Makefile/Kconfig entries..."
+for pair in \
+    "drivers/clk/sunxi-ng/Kconfig|source \"drivers/clk/sunxi-ng/Kconfig\"" \
+    "drivers/clk/sunxi-ng/Makefile|obj-\$(CONFIG_AW_SUN60IW2_CCU) += clk-sun60i-a733.o"; do
+    file="${pair%%|*}"; line="${pair#*|}"
+    target="$KERNEL_SRC/$file"
+    if [ -f "$target" ] && ! grep -qF "sun60i-a733" "$target" 2>/dev/null; then
+        echo "" >> "$target"
+        echo "# Orange Pi 4 Pro (Allwinner A733)" >> "$target"
+        echo "$line" >> "$target"
+    fi
+done
+
+echo ""
+echo "NOTE: For a complete installation with all Makefile/Kconfig entries,"
+echo "the unified patch (opi4pro-7.1.5.patch) is recommended instead."
+
 echo ""
 echo "=== Installation complete ==="
-echo ""
-echo "Makefile/Kconfig entries may need to be added manually."
-echo "See doc/makefile-additions.txt for the full list."
 echo ""
 echo "Build with:"
 echo "  cd $KERNEL_SRC"

@@ -22,48 +22,50 @@ Out-of-tree support for the **Orange Pi 4 Pro** single-board computer on **Linux
 
 ```
 linux-opi4pro-a733/
-├── README.md
-├── opi4pro-7.1.5-install.sh    # Interactive installer
-├── patch/
-│   └── opi4pro-7.1.5.patch     # Unified diff for Linux 7.1.5
-├── boot/
-│   ├── boot.cmd                 # U-Boot boot script (source)
-│   ├── boot.scr                 # U-Boot boot script (compiled)
-│   └── orangepiEnv.txt          # U-Boot environment
-├── dts/
-│   ├── sun60i-a733.dtsi        # SoC device tree include
-│   ├── sun60i-a733-orangepi-4-pro.dts  # Board device tree
-│   ├── orangepi_4pro_defconfig  # Kernel defconfig
-│   ├── include/dt-bindings/     # DT binding headers
-│   └── src/                     # Driver source files
-│       ├── clk/                 # CCU (clock control unit)
-│       ├── pinctrl/             # Pin controller
-│       ├── mmc/                 # MMC/SD host driver
-│       ├── ethernet/            # GMAC Ethernet glue
-│       ├── phy/                 # SerDes, USB3, PCIe PHY
-│       ├── mfd/                 # AXP8191 PMIC MFD
-│       ├── regulator/           # AXP8191 regulator
-│       ├── drm/                 # Display Engine, TCON, HDMI, DRM glue
-│       ├── thermal/             # Thermal sensor
-│       ├── crypto/              # Crypto engine
-│       └── sound/               # Audio machine driver
-└── doc/
-    ├── makefile-additions.txt   # Makefile/Kconfig entries
-    └── pin-mapping.md           # Full pin mapping reference
+├ README.md
+├ opi4pro-7.1.5-install.sh    # Interactive installer (alternative to patch)
+├ patch/
+│  └ opi4pro-7.1.5.patch     # Unified diff for Linux 7.1.5 (12K lines, all-inclusive)
+├ boot/
+│  ├── boot.cmd               # U-Boot boot script (source)
+│  ├── boot.scr               # U-Boot boot script (compiled)
+│  └ orangepiEnv.txt          # U-Boot environment
+├ dts/
+│  ├── sun60i-a733.dtsi       # SoC device tree include
+│  ├── sun60i-a733-orangepi-4-pro.dts  # Board device tree
+│  ├── orangepi_4pro_defconfig # Kernel defconfig
+│  ├── include/dt-bindings/    # DT binding headers
+│  └ src/                     # Driver source files
+│      ├── clk/               # CCU (clock control unit)
+│      ├── pinctrl/           # Pin controller
+│      ├── mmc/               # MMC/SD host driver
+│      ├── ethernet/          # GMAC Ethernet glue
+│      ├── phy/               # SerDes, USB3, PCIe PHY
+│      ├── mfd/               # AXP8191 PMIC MFD
+│      ├── regulator/         # AXP8191 regulator
+│      ├── drm/               # Display Engine, TCON, HDMI, DRM glue
+│      ├── thermal/           # Thermal sensor
+│      ├── crypto/            # Crypto engine
+│      └ sound/               # Audio machine driver
+└ doc/
+   ├── makefile-additions.txt # Makefile/Kconfig entries reference
+   └ pin-mapping.md          # Full pin mapping reference
 ```
 
 ## Quick Start
 
-### Option 1: Use the unified patch
+### Option 1: Use the unified patch (recommended)
 
 ```bash
 git clone --depth=1 --branch v7.1.5 https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git linux-7.1.5
 cd linux-7.1.5
 patch -p1 < /path/to/opi4pro-7.1.5.patch
-# Add Makefile/Kconfig entries (see doc/makefile-additions.txt)
 make orangepi_4pro_defconfig
 make -j$(nproc)
 ```
+
+The patch includes all Makefile/Kconfig entries, driver source files, device tree
+sources, defconfig, and DT binding headers. No manual steps needed.
 
 ### Option 2: Use the installer script
 
