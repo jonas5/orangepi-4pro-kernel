@@ -433,3 +433,12 @@ have been cross-validated against the vendor BSP and Allwinner documentation:
 ## License
 
 GPL-2.0-or-later — consistent with the Linux kernel source tree.
+
+## Disclaimer
+
+**USE AT YOUR OWN RISK.** This repository, its patches, scripts, and documentation are provided "as is" without warranty of any kind. The authors and contributors are not responsible for any damage, data loss, bricked hardware, or other consequences resulting from the use or misuse of this material. Applying kernel patches, modifying device trees, and flashing firmware carry inherent risks including but not limited to hardware damage and loss of warranty. By using this repository you acknowledge that:
+
+- You are solely responsible for any changes you make to your system.
+- You should back up all important data before proceeding.
+- You should verify compatibility with your specific hardware revision before applying changes.
+- Nothing here constitutes legal, financial, or professional advice.
