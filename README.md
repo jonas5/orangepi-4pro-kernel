@@ -10,7 +10,7 @@ Out-of-tree support for the **Orange Pi 4 Pro** single-board computer on **Linux
 | RAM | 8/16 GB LPDDR4X |
 | Storage | eMMC (MMC2), microSD (MMC0), SPI NOR flash |
 | Ethernet | Gigabit (GMAC0, RGMII) |
-| WiFi/BT | AP6275S / BCM43752 (SDIO + UART HCI) |
+| WiFi/BT | AIC8800D80 (SDIO + UART HCI) — WiFi firmware in source tree |
 | USB | 1x USB3 Type-C (OTG), 2x USB2 Type-A (EHCI/OHCI) |
 | PCIe | x1 Gen3 (RC mode) |
 | Display | MIPI DSI panel (800×1280) |
@@ -339,8 +339,8 @@ domain), while the **R_AON PIO** handles banks PL–PN (1.8V always-on domain).
 | BT Host Wake | PM4 | GPIO (R_AON, active high) | [S1] |
 
 **Notes:**
-- The AP6275S WiFi/BT combo module uses SDIO for WLAN and UART for BT HCI. [S2]
-- WiFi power sequencing is handled via `mmc-pwrseq-simple` on PI9. [S2]
+- The AIC8800 WiFi/BT combo module uses SDIO for WLAN and UART for BT HCI. [S2]
+- WiFi firmware files are in `firmware/aic8800d80/` and must be loaded by the driver.
 - BT control GPIOs (PM1–PM4) are on the R_AON 1.8V domain. [S1]
 
 ---
@@ -445,11 +445,11 @@ have been cross-validated against the vendor BSP and Allwinner documentation:
 
 ## Known Limitations
 
-- NPU acceleration not yet functional (driver exists, firmware required)
+- NPU acceleration requires vendor HAL (`libVIPhal.so` included in `firmware/`); open-source support not yet available
 - Camera/ISP subsystem not supported (complex multi-unit pipeline)
 - GPU (Mali Bifrost) uses Panfrost driver — no vendor userspace needed
 - HDMI audio path not configured (HDMI video works)
-- Bluetooth requires additional firmware loading
+- Bluetooth requires firmware loading via `brcm_patchram_plus` or `hciattach_opi` (tools included in `firmware/`)
 - WS2812 RGB LED (LEDC) not configured by default
 
 ## License
