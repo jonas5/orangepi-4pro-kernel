@@ -26,6 +26,11 @@ linux-opi4pro-a733/
 ├ opi4pro-7.1.5-install.sh    # Interactive installer (alternative to patch)
 ├ patch/
 │  └ opi4pro-7.1.5.patch     # Unified diff for Linux 7.1.5 (12K lines, all-inclusive)
+├ firmware/
+│  ├── install-firmware.sh    # Firmware installer (run as root)
+│  ├── aic8800d80/            # AIC8800 WiFi + BT firmware
+│  ├── npu/                   # NPU HAL library (libVIPhal.so)
+│  └ bt-tools/                # Bluetooth UART tools
 ├ boot/
 │  ├── boot.cmd               # U-Boot boot script (source)
 │  ├── boot.scr               # U-Boot boot script (compiled)
@@ -84,7 +89,22 @@ cp arch/arm64/boot/dts/allwinner/sun60i-a733-orangepi-4-pro.dtb /mnt/sdcard/boot
 cp arch/arm64/boot/Image /mnt/sdcard/boot/
 mkimage -C none -A arm64 -T script -n "OPi4Pro" -d boot/boot.cmd /mnt/sdcard/boot/boot.scr
 cp boot/orangepiEnv.txt /mnt/sdcard/boot/
+
+# Install WiFi/BT and NPU firmware
+sudo ./firmware/install-firmware.sh /mnt/sdcard
 ```
+
+### Pre-built .deb package
+
+A kernel .deb package is available for direct installation on Debian/Ubuntu-based systems:
+
+```bash
+sudo dpkg -i linux-image-7.1.5-opi4pro-dirty_7.1.5-4_arm64.deb
+sudo ./firmware/install-firmware.sh
+```
+
+The .deb contains the kernel image, DTBs, and `modules.builtin` (all drivers are built-in).
+The firmware installer deploys AIC8800 WiFi/BT firmware, NPU HAL, and Bluetooth utilities.
 
 ---
 
