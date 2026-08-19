@@ -7,7 +7,7 @@ env import -t ${loadaddr} ${filesize}
 part uuid mmc 0:1 rootdev
 
 # Boot arguments
-setenv bootargs "console=ttyS0,115200 root=PARTUUID=${rootdev} rootwait rw rootfstype=ext4 loglevel=${verbosity} sunxi_fc=fdt,${fdtfile}"
+setenv bootargs "console=ttyS0,115200 root=PARTUUID=${rootdev} rootwait rw rootfstype=ext4 loglevel=${verbosity} sunxi_fc=fdt,${fdtfile} cma=${cma}"
 
 # Load boot files
 ext4load mmc 0:1 ${ramdisk_addr_r} /boot/uInitrd

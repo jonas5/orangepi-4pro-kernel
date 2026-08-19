@@ -8,3 +8,4 @@ loadaddr=0x45000000
 overlay_prefix=sun60i-a733
 rootdev=PARTUUID=auto
 rootfstype=ext4
+cma=512M
