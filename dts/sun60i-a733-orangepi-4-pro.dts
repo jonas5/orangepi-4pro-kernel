@@ -327,7 +327,7 @@
 				regulator-enable-ramp-delay = <1000>;
 			};
 
-			dcdc3 {
+			reg_dcdc3: dcdc3 {
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-name = "axp8191-dcdc3";
@@ -345,7 +345,7 @@
 				regulator-enable-ramp-delay = <1000>;
 			};
 
-			dcdc5 {
+			reg_dcdc5: dcdc5 {
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-name = "axp8191-dcdc5";
@@ -823,3 +823,12 @@
 		drive-strength = <10>;
 	};
 };
+
+&cpu0 { cpu-supply = <&reg_dcdc5>; };
+&cpu1 { cpu-supply = <&reg_dcdc5>; };
+&cpu2 { cpu-supply = <&reg_dcdc5>; };
+&cpu3 { cpu-supply = <&reg_dcdc5>; };
+&cpu4 { cpu-supply = <&reg_dcdc5>; };
+&cpu5 { cpu-supply = <&reg_dcdc5>; };
+&cpu6 { cpu-supply = <&reg_dcdc3>; };
+&cpu7 { cpu-supply = <&reg_dcdc3>; };
