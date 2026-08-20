@@ -7,11 +7,15 @@
 
 #include <linux/clk.h>
 #include <linux/delay.h>
+#include <linux/iopoll.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/phy/phy.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
+
+#define PHY_MODE_PCIE_A	2
+#define PHY_MODE_PCIE_B	3
 
 /* PCIe PHY register offsets (mapped via SerDes) */
 #define PCIE_PHY_CTRL		0x0200

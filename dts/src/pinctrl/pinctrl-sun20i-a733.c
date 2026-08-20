@@ -679,51 +679,24 @@ static const struct sunxi_desc_pin a733_pins[] = {
  * Bank base offsets. Each bank is indexed relative to bank A.
  * PA=0, PB=1, PC=2, PD=3, PE=4, PF=5, PG=6, PH=7, PI=8, PJ=9, PK=10.
  */
-static const unsigned int a733_bank_base[] = {
-	SUNXI_BANK_OFFSET('B', 'A'),
-	SUNXI_BANK_OFFSET('C', 'A'),
-	SUNXI_BANK_OFFSET('D', 'A'),
-	SUNXI_BANK_OFFSET('E', 'A'),
-	SUNXI_BANK_OFFSET('F', 'A'),
-	SUNXI_BANK_OFFSET('G', 'A'),
-	SUNXI_BANK_OFFSET('H', 'A'),
-	SUNXI_BANK_OFFSET('I', 'A'),
-	SUNXI_BANK_OFFSET('J', 'A'),
-	SUNXI_BANK_OFFSET('K', 'A'),
-};
+/* Bank base offsets: PA=0, PB=1, PC=2, PD=3, PE=4, PF=5, PG=6, PH=7, PI=8, PJ=9, PK=10 */
 
 /*
  * IRQ-capable banks: PB through PJ (9 banks).
  * Maps software IRQ bank index -> hardware bank offset.
  */
-static const unsigned int a733_irq_bank_map[] = {
-	SUNXI_BANK_OFFSET('B', 'A'),
-	SUNXI_BANK_OFFSET('C', 'A'),
-	SUNXI_BANK_OFFSET('D', 'A'),
-	SUNXI_BANK_OFFSET('E', 'A'),
-	SUNXI_BANK_OFFSET('F', 'A'),
-	SUNXI_BANK_OFFSET('G', 'A'),
-	SUNXI_BANK_OFFSET('H', 'A'),
-	SUNXI_BANK_OFFSET('I', 'A'),
-	SUNXI_BANK_OFFSET('J', 'A'),
-};
+static const unsigned int a733_irq_bank_map[] = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
 
 static const struct sunxi_pinctrl_desc a733_pinctrl_data = {
 	.pins			= a733_pins,
 	.npins			= ARRAY_SIZE(a733_pins),
-	.banks			= ARRAY_SIZE(a733_bank_base),
-	.bank_base		= a733_bank_base,
 	.irq_banks		= ARRAY_SIZE(a733_irq_bank_map),
 	.irq_bank_map		= a733_irq_bank_map,
-	.pf_power_source_switch	= true,
-	.auto_power_source_switch = true,
-	.hw_type		= SUNXI_PCTL_HW_TYPE_4,
 };
 
 static int a733_pinctrl_probe(struct platform_device *pdev)
 {
-	sunxi_info(NULL, "sunxi pinctrl version: %s\n", A733_PINCTRL_VERSION);
-	return sunxi_bsp_pinctrl_init(pdev, &a733_pinctrl_data);
+	return sunxi_pinctrl_init(pdev, &a733_pinctrl_data);
 }
 
 static const struct of_device_id a733_pinctrl_match[] = {
