@@ -123,35 +123,33 @@
 };
 
 &r_pio {
-	pio: pinctrl@2000000 {
-		/* Redeclare to add board-specific pin groups */
+	/* Board-specific pin groups */
 
-		/* UART2 pins */
-			uart2_pins: uart2-pins {
-				pins = "PB0", "PB1";
-				function = "uart2";
-			};
+	/* UART2 pins */
+	uart2_pins: uart2-pins {
+		pins = "PB0", "PB1";
+		function = "uart2";
+	};
 
-			/* R_PIO pins */
-		r_i2c0_pins: r-i2c0-pins {
-			pins = "PL0", "PL1";
-			function = "r_i2c0";
-			drive-strength = <40>;
-		};
+	/* R_PIO pins */
+	r_i2c0_pins: r-i2c0-pins {
+		pins = "PL0", "PL1";
+		function = "r_i2c0";
+		drive-strength = <40>;
+	};
 
-		wifi_enable_pin: wifi-enable-pin {
-			pins = "PI9";
-			function = "gpio";
-			drive-strength = <10>;
-			output-low;
-		};
+	wifi_enable_pin: wifi-enable-pin {
+		pins = "PI9";
+		function = "gpio";
+		drive-strength = <10>;
+		output-low;
+	};
 
-		gmac_rst_pin: gmac-rst-pin {
-			pins = "PB13";
-			function = "gpio";
-			drive-strength = <10>;
-			output-high;
-		};
+	gmac_rst_pin: gmac-rst-pin {
+		pins = "PB13";
+		function = "gpio";
+		drive-strength = <10>;
+		output-high;
 	};
 };
 

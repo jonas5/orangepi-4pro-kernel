@@ -13,6 +13,7 @@
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/gpio/sun60i-a733-gpio.h>
 #include <dt-bindings/thermal/sun60i-a733-thermal.h>
+#include <dt-bindings/phy/phy.h>
 
 / {
 	interrupt-parent = <&gic>;
@@ -756,13 +757,12 @@
 			resets = <&ccu RST_BUS_TIMER0>;
 		};
 
-		gpufreq: gpu-freq@1800000 {
-			compatible = "allwinner,sun60i-a733-gpufreq";
-			reg = <0x01800000 0x8ffff>;
-			nvmem-cells = <&speed_bin>;
-			nvmem-cell-names = "opp-speed-bin";
-			#freq-domain-cells = <0>;
-		};
+	gpufreq: gpu-freq@1800000 {
+		compatible = "allwinner,sun60i-a733-gpufreq";
+		reg = <0x01800000 0x8ffff>;
+		#freq-domain-cells = <0>;
+		status = "disabled";
+	};
 
 		ledc: led-controller@2520000 {
 			compatible = "allwinner,sun60i-a733-ledc",

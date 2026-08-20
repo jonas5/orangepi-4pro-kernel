@@ -158,6 +158,9 @@
 #define CLK_DMIC		115
 #define CLK_AUDIOC		116
 
+/* Vendor alias */
+#define CLK_AUDIO		CLK_PLL_AUDIO0_4X
+
 #define CLK_SPINLOCK		117
 #define CLK_DRC			118
 #define CLK_MSGBOX		119
@@ -222,5 +225,141 @@
 
 /* PCIe reset */
 #define RST_BUS_PCIE0		37
+
+/*
+ * Vendor-name aliases (DTSI uses these names, which map to the
+ * canonical indices above).
+ */
+
+/* TWI / I2C aliases */
+#define CLK_BUS_TWI0		CLK_BUS_I2C0
+#define CLK_BUS_TWI1		CLK_BUS_I2C1
+#define CLK_BUS_TWI2		CLK_BUS_I2C2
+#define CLK_BUS_TWI3		CLK_BUS_I2C3
+#define CLK_BUS_TWI4		CLK_BUS_I2C4
+#define CLK_BUS_TWI5		CLK_BUS_I2C5
+
+/* SMHC / MMC aliases */
+#define CLK_SMHC0		CLK_MMC0
+#define CLK_SMHC1		CLK_MMC1
+#define CLK_SMHC2		CLK_MMC2
+
+#define CLK_BUS_SMHC0		CLK_BUS_MMC0
+#define CLK_BUS_SMHC1		CLK_BUS_MMC1
+#define CLK_BUS_SMHC2		CLK_BUS_MMC2
+
+#define RST_BUS_SMHC0		RST_BUS_MMC0
+#define RST_BUS_SMHC1		RST_BUS_MMC1
+#define RST_BUS_SMHC2		RST_BUS_MMC2
+
+/* TWI / I2C reset aliases */
+#define RST_BUS_TWI0		RST_BUS_I2C0
+#define RST_BUS_TWI1		RST_BUS_I2C1
+#define RST_BUS_TWI2		RST_BUS_I2C2
+#define RST_BUS_TWI3		RST_BUS_I2C3
+#define RST_BUS_TWI4		RST_BUS_I2C4
+#define RST_BUS_TWI5		RST_BUS_I2C5
+
+/* MSGBOX aliases */
+#define CLK_MSGBOX0		CLK_MSGBOX
+#define RST_BUS_MSGBOX0		RST_BUS_MSGBOX
+
+/* PLL VE alias */
+#define CLK_PLL_VE0		CLK_PLL_VE
+
+/* GMAC aliases */
+#define CLK_GMAC0		CLK_GMAC
+#define RST_BUS_GMAC0		RST_BUS_GMAC
+
+/* GPADC aliases */
+#define CLK_GPADC0		CLK_GPADC
+#define RST_BUS_GPADC0		RST_BUS_GPADC
+
+/* PWM aliases */
+#define CLK_PWM0		CLK_PWM
+#define RST_BUS_PWM0		RST_BUS_PWM
+
+/* VE / NPU bus clock placeholders */
+#define CLK_BUS_VE_DEC		CLK_BUS_DMA
+#define CLK_BUS_VE_ENC		CLK_BUS_DMA
+#define CLK_BUS_NPU		CLK_BUS_DMA
+
+/* Timer / LEDC / TWI7-9 bus clocks */
+#define CLK_BUS_TIMER		129
+#define CLK_TIMER0		130
+#define CLK_TIMER1		131
+#define CLK_BUS_LEDC		132
+#define CLK_LEDC			133
+#define CLK_BUS_TWI7		134
+#define CLK_BUS_TWI8		135
+#define CLK_BUS_TWI9		136
+
+/* USB clocks */
+#define CLK_USB0			137
+#define CLK_USB0_DEVICE		138
+#define CLK_USB0_EHCI		139
+#define CLK_USB0_OHCI		140
+#define CLK_USB1			141
+#define CLK_USB1_EHCI		142
+#define CLK_USB1_OHCI		143
+#define CLK_USB2			144
+#define CLK_USB2_MF		145
+
+/* DMA / MBUS / CE clocks */
+#define CLK_DMA			146
+#define CLK_MBUS_DMA		147
+#define CLK_MBUS_CE		148
+#define CLK_CE			149
+
+/* VE (video engine) clocks */
+#define CLK_PLL_VE1		150
+#define CLK_VE_AHB_GATE		151
+#define CLK_VE_DEC			152
+#define CLK_VE_DEC_MBUS		153
+#define CLK_DEC_MBUS_GATE		154
+#define CLK_VE_ENC_AHB_GATE	155
+#define CLK_VE_ENC0		156
+#define CLK_MBUS_VE_GATE		157
+#define CLK_MBUS_VE		158
+
+/* NPU clocks */
+#define CLK_NPU			159
+#define CLK_PLL_NPU		160
+
+/* PERI0 derived clocks */
+#define CLK_PLL_PERI0_800M	161
+#define CLK_PLL_PERI0_600M	162
+#define CLK_PLL_PERI0_300M	163
+#define CLK_PLL_PERI0_200M	164
+#define CLK_PLL_PERI0_400M	CLK_PLL_PERIPH0_4X
+
+/* GMAC derived clocks */
+#define CLK_GMAC0_MBUS		165
+#define CLK_GMAC0_PHY		166
+
+/* GPADC derived clock */
+#define CLK_GPADC0_24M		167
+
+/* UART6 */
+#define CLK_UART6			168
+
+/* New reset indices */
+#define RST_BUS_TWI7		55
+#define RST_BUS_TWI8		56
+#define RST_BUS_TWI9		57
+#define RST_USB0			58
+#define RST_USB0_EHCI		59
+#define RST_USB0_OHCI		60
+#define RST_USB1			61
+#define RST_USB1_EHCI		62
+#define RST_USB1_OHCI		63
+#define RST_USB2			64
+#define RST_BUS_GMAC0_AXI	65
+#define RST_BUS_TIMER0		66
+#define RST_BUS_LEDC		67
+#define RST_BUS_NPU		68
+#define RST_BUS_VE_DEC		69
+#define RST_BUS_VE_ENC0		70
+#define RST_BUS_UART6		71
 
 #endif /* _DT_BINDINGS_CLK_SUN60I_A733_CCU_H_ */

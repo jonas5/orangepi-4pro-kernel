@@ -60,4 +60,21 @@
 #define R_RST_R_PPU0		9
 #define R_RST_R_PPU1		10
 
+/*
+ * Vendor-name aliases (DTSI uses these names, which map to the
+ * canonical indices above).
+ */
+#define CLK_R_AHB		R_CLK_R_AHB
+#define CLK_R_APB0		R_CLK_R_APB1
+#define CLK_R_TWI0		R_CLK_R_I2C
+#define RST_BUS_R_TWI0		R_RST_R_I2C
+#define RST_BUS_RTC		R_RST_RTC
+#define CLK_R_PPU		R_CLK_R_PPU
+#define RST_BUS_R_PPU0		R_RST_R_PPU0
+#define RST_BUS_R_PPU1		R_RST_R_PPU1
+
+/* New clock defines */
+#define CLK_RTC_1K		22
+#define CLK_RTC_SPI		23
+
 #endif /* _DT_BINDINGS_CLK_SUN60I_A733_R_CCU_H_ */
