@@ -12729,7 +12729,7 @@ new file mode 100644
 index 000000000..000000001
 --- /dev/null
 +++ b/drivers/power/supply/axp8191-power-supply.c
-@@ -0,0 +1,235 @@
+@@ -0,0 +1,275 @@
 +// SPDX-License-Identifier: GPL-2.0-or-later
 +/*
 + * AXP8191 Power Supply driver
@@ -12737,6 +12737,11 @@ index 000000000..000000001
 + * Reports VBUS/AC adapter online status, voltage, and current.
 + * The AXP8191 has ADC channels for VBUS voltage/current monitoring
 + * and status registers for power source detection.
++ *
++ * Supports charger_mode=kernel parameter:
++ *   powerbank - limit input current to 500mA (safe for USB power banks)
++ *   fast      - allow up to 1500mA input current (wall adapter)
++ *   (empty)  - default 1000mA
 + */
 +
 +#include <linux/module.h>
@@ -12746,6 +12751,7 @@ index 000000000..000000001
 +#include <linux/regmap.h>
 +#include <linux/power_supply.h>
 +#include <linux/delay.h>
++#include <linux/moduleparam.h>
 +
 +/* Register definitions (from MFD) */
 +#define AXP8191_POWER_STATUS	0x02
@@ -12758,18 +12764,25 @@ index 000000000..000000001
 +#define AXP8191_VBUS_CUR_L	0x59
 +#define AXP8191_ADC_SPEED	0x53
 +
-+/* ADC enable bits (AXP8191-specific, derived from init code patterns) */
++/* ADC enable bits */
 +#define AXP8191_ADC_EN_VBUS_VOLT	BIT(7)
 +#define AXP8191_ADC_EN_VBUS_CUR		BIT(6)
 +
 +/* POWER_STATUS bits */
 +#define AXP8191_PS_VBUS_PRESENT		BIT(7)
 +#define AXP8191_PS_ACIN_PRESENT		BIT(6)
-+#define AXP8191_PS_VBUS_GOOD		BIT(5)
-+#define AXP8191_PS_ACIN_GOOD		BIT(4)
 +
-+/* VBUS_STATUS bits */
-+#define AXP8191_VS_VBUS_HOLDS		BIT(7)
++/* Charger CTRL1 bits */
++#define AXP8191_CC1_CHARGE_ENABLE	BIT(7)
++#define AXP8191_CC1_IINLIM_MASK	GENMASK(6, 4)
++#define AXP8191_CC1_IINLIM_100MA	0
++#define AXP8191_CC1_IINLIM_500MA	BIT(4)
++#define AXP8191_CC1_IINLIM_1000MA	BIT(5)
++#define AXP8191_CC1_IINLIM_1500MA	(BIT(5) | BIT(4))
++
++static char *charger_mode;
++module_param(charger_mode, charp, 0444);
++MODULE_PARM_DESC(charger_mode, "Charger mode: powerbank (500mA), fast (1500mA)");
 +
 +struct axp8191_psy {
 +	struct device *dev;
@@ -12903,6 +12916,29 @@ index 000000000..000000001
 +	.get_property = axp8191_ac_get_property,
 +};
 +
++static void axp8191_psy_set_charger_current(struct axp8191_psy *psy)
++{
++	u32 iinlim;
++
++	if (!charger_mode)
++		return;
++
++	if (strcmp(charger_mode, "powerbank") == 0) {
++		iinlim = AXP8191_CC1_IINLIM_500MA;
++		dev_info(psy->dev, "charger_mode=powerbank: limiting input to 500mA\n");
++	} else if (strcmp(charger_mode, "fast") == 0) {
++		iinlim = AXP8191_CC1_IINLIM_1500MA;
++		dev_info(psy->dev, "charger_mode=fast: allowing input up to 1500mA\n");
++	} else {
++		dev_warn(psy->dev, "unknown charger_mode='%s', using default\n",
++			 charger_mode);
++		return;
++	}
++
++	regmap_update_bits(psy->regmap, AXP8191_CHARGER_CTRL1,
++			   AXP8191_CC1_IINLIM_MASK, iinlim);
++}
++
 +static int axp8191_power_supply_probe(struct platform_device *pdev)
 +{
 +	struct device *dev = &pdev->dev;
@@ -12924,6 +12960,9 @@ index 000000000..000000001
 +	regmap_update_bits(psy_data->regmap, AXP8191_ADC_EN1,
 +			   AXP8191_ADC_EN_VBUS_VOLT | AXP8191_ADC_EN_VBUS_CUR,
 +			   AXP8191_ADC_EN_VBUS_VOLT | AXP8191_ADC_EN_VBUS_CUR);
++
++	/* Apply charger mode from kernel command line */
++	axp8191_psy_set_charger_current(psy_data);
 +
 +	usb_cfg.drv_data = psy_data;
 +	usb_cfg.fwnode = dev_fwnode(dev);
@@ -12965,6 +13004,7 @@ index 000000000..000000001
 +MODULE_LICENSE("GPL");
 +MODULE_AUTHOR("Allwinner");
 +MODULE_DESCRIPTION("AXP8191 Power Supply driver");
++MODULE_PARM_DESC(charger_mode, "Charger mode: powerbank (500mA), fast (1500mA)");
 
 diff --git a/drivers/power/supply/axp8191-battery.c b/drivers/power/supply/axp8191-battery.c
 new file mode 100644

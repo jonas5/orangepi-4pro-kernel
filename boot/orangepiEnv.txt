@@ -10,3 +10,7 @@ rootdev=PARTUUID=auto
 rootfstype=ext4
 cma=512M
 extraargs=pcie_aspm=powersave nmi_watchdog=0
+
+# Charger mode: set to "powerbank" when powering from a USB power bank
+# to limit input current to 500mA. Remove or leave empty for wall adapter.
+#charger_mode=powerbank
