@@ -13788,3 +13788,16 @@ index 000000000..000000002
 +MODULE_AUTHOR("Allwinner");
 +MODULE_DESCRIPTION("AXP8191 Onkey driver");
 
+diff --git a/scripts/Makefile.dtbs b/scripts/Makefile.dtbs
+index c4e466390..a86cdff32 100644
+--- a/scripts/Makefile.dtbs
++++ b/scripts/Makefile.dtbs
+@@ -124,7 +124,7 @@ DTC_FLAGS += $(if $(filter $(patsubst $(obj)/%,%,$@), $(base-dtb-y)), -@)
+ 
+ DTC_INCLUDE := $(srctree)/scripts/dtc/include-prefixes
+ 
+-dtc_cpp_flags = -Wp,-MMD,$(depfile).pre.tmp -nostdinc -I $(DTC_INCLUDE) -undef -D__DTS__
++dtc_cpp_flags = -Wp,-MMD,$(depfile).pre.tmp -nostdinc -I $(DTC_INCLUDE) -I $(srctree)/include -undef -D__DTS__
+ 
+ dtc-tmp = $(subst $(comma),_,$(dot-target).dts.tmp)
+ 
