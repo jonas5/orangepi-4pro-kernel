@@ -12734,7 +12734,7 @@ diff --git a/drivers/power/supply/Kconfig b/drivers/power/supply/Kconfig
 diff --git a/drivers/power/supply/Makefile b/drivers/power/supply/Makefile
 --- a/drivers/power/supply/Makefile
 +++ b/drivers/power/supply/Makefile
-@@ -25,6 +25,7 @@ obj-$(CONFIG_CHARGER_AXP20X)	+= axp20x_ac_power.o
+@@ -28,6 +28,7 @@ obj-$(CONFIG_CHARGER_AXP20X)	+= axp20x_ac_power.o
  obj-$(CONFIG_BATTERY_CPCAP)	+= cpcap-battery.o
  obj-$(CONFIG_BATTERY_CW2015)	+= cw2015_battery.o
  obj-$(CONFIG_BATTERY_DS2760)	+= ds2760_battery.o
