@@ -9,3 +9,4 @@ overlay_prefix=sun60i-a733
 rootdev=PARTUUID=auto
 rootfstype=ext4
 cma=512M
+extraargs=pcie_aspm=powersave nmi_watchdog=0
