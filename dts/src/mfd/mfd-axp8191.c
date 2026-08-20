@@ -160,10 +160,14 @@ static struct mfd_cell axp8191_cells[] = {
 	},
 };
 
+static struct axp8191_dev *axp8191_global_dev;
+
 static void axp8191_power_off(void)
 {
-	struct axp8191_dev *axp = container_of(
-		&__this_module, struct axp8191_dev, dev);
+	struct axp8191_dev *axp = axp8191_global_dev;
+
+	if (!axp)
+		return;
 
 	/* Trigger a power off sequence */
 	regmap_write(axp->regmap, AXP8191_POWER_OFF, AXP8191_POWER_OFF_MAGIC);
@@ -295,7 +299,7 @@ static int axp8191_i2c_probe(struct i2c_client *client)
 	struct axp8191_dev *axp;
 	int ret;
 
-	if (!i2c_verify_functionality(client->adapter,
+	if (!i2c_check_functionality(client->adapter,
 				      I2C_FUNC_I2C | I2C_FUNC_SMBUS_BYTE_DATA))
 		return -ENODEV;
 
@@ -339,8 +343,11 @@ static int axp8191_i2c_probe(struct i2c_client *client)
 	 * The power-off callback uses regmap so the PMIC is functional by
 	 * the time the system calls it.
 	 */
+	axp8191_global_dev = axp;
 	if (pm_power_off)
 		dev_warn(dev, "pm_power_off already registered\n");
+	else
+		pm_power_off = axp8191_power_off;
 
 	return 0;
 }

@@ -12,6 +12,7 @@
 
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/ctype.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/regulator/driver.h>
@@ -228,6 +229,7 @@ static int axp8191_regulator_probe(struct platform_device *pdev)
 	for (i = 0; i < ARRAY_SIZE(axp8191_regs); i++) {
 		const struct axp8191_reg_info *info = &axp8191_regs[i];
 		struct regulator_desc *desc;
+		struct regulator_config config = {};
 
 		desc = devm_kzalloc(dev, sizeof(*desc), GFP_KERNEL);
 		if (!desc)
@@ -239,11 +241,21 @@ static int axp8191_regulator_probe(struct platform_device *pdev)
 		desc->owner = THIS_MODULE;
 		desc->of_match = devm_kasprintf(dev, GFP_KERNEL,
 						"axp8191-%s-ldo",
-						strtolower(info->name));
+						info->name);
 		if (!desc->of_match)
 			return -ENOMEM;
+		{
+			char *p = (char *)desc->of_match;
+			while (*p) {
+				*p = tolower(*p);
+				p++;
+			}
+		}
 
-		rdev = devm_regulator_register(dev, desc, &info);
+		config.dev = dev;
+		config.regmap = regmap;
+
+		rdev = devm_regulator_register(dev, desc, &config);
 		if (IS_ERR(rdev)) {
 			ret = dev_err_probe(dev, PTR_ERR(rdev),
 					    "Failed to register %s\n",

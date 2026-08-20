@@ -128,7 +128,7 @@ static void sun60i_serdes_power_down(struct sun60i_serdes *serdes, int lane)
 	sun60i_serdes_write(serdes->base, SERDES_POWERDOWN, val);
 }
 
-static int sun60i_serdes_wait_ready(struct sun60i_serdes *serdes)
+static int __maybe_unused sun60i_serdes_wait_ready(struct sun60i_serdes *serdes)
 {
 	u32 val;
 	int ret;
@@ -246,8 +246,8 @@ static int sun60i_serdes_exit(struct phy *phy)
 	return 0;
 }
 
-static int sun60i_serdes_configure(struct phy *phy, enum phy_mode mode,
-				   int submode)
+static int sun60i_serdes_configure(struct phy *phy,
+				   union phy_configure_opts *opts)
 {
 	struct sun60i_serdes *serdes = phy_get_drvdata(phy);
 	int lane = phy->id;
@@ -255,36 +255,13 @@ static int sun60i_serdes_configure(struct phy *phy, enum phy_mode mode,
 	if (lane < 0 || lane >= SERDES_NUM_LANES)
 		return -EINVAL;
 
-	return sun60i_serdes_configure_lane(serdes, lane, mode);
-}
-
-static int sun60i_serdes_verify(struct phy *phy, enum phy_mode mode,
-				int submode)
-{
-	struct sun60i_serdes *serdes = phy_get_drvdata(phy);
-	int lane = phy->id;
-	u32 val;
-
-	val = sun60i_serdes_read(serdes->base, SERDES_LANECTRL0 + (lane * 4));
-	val &= LANECTRL_MODE_MASK;
-
-	switch (mode) {
-	case PHY_MODE_USB_HOST_SS:
-		return (val == LANECTRL_MODE_USB3) ? 0 : -EINVAL;
-	case PHY_MODE_PCIE:
-		return (val == LANECTRL_MODE_PCIE) ? 0 : -EINVAL;
-	case PHY_MODE_DP:
-		return (val == LANECTRL_MODE_DP) ? 0 : -EINVAL;
-	default:
-		return -EINVAL;
-	}
+	return sun60i_serdes_configure_lane(serdes, lane, phy->attrs.mode);
 }
 
 static const struct phy_ops sun60i_serdes_ops = {
 	.init		= sun60i_serdes_init,
 	.exit		= sun60i_serdes_exit,
 	.configure	= sun60i_serdes_configure,
-	.verify		= sun60i_serdes_verify,
 	.owner		= THIS_MODULE,
 };
 
@@ -341,7 +318,6 @@ static int sun60i_serdes_probe(struct platform_device *pdev)
 		phy_set_bus_width(phy, 0);
 		phy_set_drvdata(phy, serdes);
 		phy->id = lane;
-		phy->init_args = 0;
 
 		serdes->lane_in_use[lane] = false;
 	}
@@ -354,9 +330,8 @@ static int sun60i_serdes_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int sun60i_serdes_remove(struct platform_device *pdev)
+static void sun60i_serdes_remove(struct platform_device *pdev)
 {
-	return 0;
 }
 
 static const struct of_device_id sun60i_serdes_of_match[] = {
