@@ -10,6 +10,7 @@
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/sun60i-a733-ccu.h>
 #include <dt-bindings/clock/sun60i-a733-r-ccu.h>
+#include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/gpio/sun60i-a733-gpio.h>
 #include <dt-bindings/thermal/sun60i-a733-thermal.h>
 
@@ -1477,11 +1478,11 @@
 				     <GIC_SPI 64 IRQ_TYPE_LEVEL_HIGH>,
 				     <GIC_SPI 64 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "gp", "gpmmu", "pp0";
-			clocks = <&ccu CLK_PLL_GPU0>, <&ccu CLK_GPU0>,
-				 <&ccu CLK_BUS_GPU0>;
+			clocks = <&ccu CLK_PLL_GPU>, <&ccu CLK_GPU>,
+				 <&ccu CLK_BUS_GPU>;
 			clock-names = "clk_mali", "clk_mali_bus",
 				      "clk_bus_mali";
-			resets = <&ccu RST_BUS_GPU0>;
+			resets = <&ccu RST_BUS_GPU>;
 			operating-points-v2 = <&gpu_opp_table>;
 			power-domains = <&pck 2>;
 
@@ -1612,16 +1613,16 @@
 			pck_de: power-domain@1 {
 				compatible = "allwinner,sun60i-a733-pd-de";
 				#power-domain-cells = <0>;
-				clocks = <&ccu CLK_DE0>,
-					 <&ccu CLK_BUS_DE0>;
-				resets = <&ccu RST_BUS_DE0>;
+				clocks = <&ccu CLK_DE>,
+					 <&ccu CLK_BUS_DE>;
+				resets = <&ccu RST_BUS_DE>;
 			};
 
 			pck_gpu: power-domain@2 {
 				compatible = "allwinner,sun60i-a733-pd-gpu";
 				#power-domain-cells = <0>;
-				clocks = <&ccu CLK_GPU0>;
-				resets = <&ccu RST_BUS_GPU0>;
+				clocks = <&ccu CLK_GPU>;
+				resets = <&ccu RST_BUS_GPU>;
 			};
 
 			pck_pcie: power-domain@3 {
@@ -1656,7 +1657,7 @@
 		sunxi-dram-freq@2020000 {
 			compatible = "allwinner,sun60i-a733-dramfreq";
 			reg = <0x02020000 0x10000>;
-			clocks = <&ccu CLK_PLL_DDR0>, <&ccu CLK_PLL_DDR1>;
+			clocks = <&ccu CLK_PLL_DDR>, <&ccu CLK_PLL_DDR1>;
 			clock-names = "pll-ddr0", "pll-ddr1";
 			status = "disabled";
 		};

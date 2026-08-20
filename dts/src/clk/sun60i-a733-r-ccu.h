@@ -42,6 +42,9 @@
 #define R_CLK_R_AHB		19
 #define R_CLK_R_APB1_DIV	20
 
+/* R-PPU clocks */
+#define R_CLK_R_PPU		21
+
 /* R-CCU resets */
 #define R_RST_RTC		0
 #define R_RST_R_PIO		1
@@ -52,5 +55,9 @@
 #define R_RST_R_THERMAL		6
 #define R_RST_R_SID		7
 #define R_RST_R_CPUCFG		8
+
+/* R-PPU resets */
+#define R_RST_R_PPU0		9
+#define R_RST_R_PPU1		10
 
 #endif /* _DT_BINDINGS_CLK_SUN60I_A733_R_CCU_H_ */

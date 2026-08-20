@@ -852,7 +852,7 @@ diff --git a/arch/arm64/boot/dts/allwinner/sun60i-a733.dtsi b/arch/arm64/boot/dt
 new file mode 100644
 --- /dev/null
 +++ b/arch/arm64/boot/dts/allwinner/sun60i-a733.dtsi
-@@ -0,0 +1,1672 @@
+@@ -0,0 +1,1673 @@
 +// SPDX-License-Identifier: (GPL-2.0-or-later OR MIT)
 +/*
 + * Device Tree Source for Allwinner Sun60i A733 SoC
@@ -865,6 +865,7 @@ new file mode 100644
 +#include <dt-bindings/interrupt-controller/arm-gic.h>
 +#include <dt-bindings/clock/sun60i-a733-ccu.h>
 +#include <dt-bindings/clock/sun60i-a733-r-ccu.h>
++#include <dt-bindings/gpio/gpio.h>
 +#include <dt-bindings/gpio/sun60i-a733-gpio.h>
 +#include <dt-bindings/thermal/sun60i-a733-thermal.h>
 +
@@ -2332,11 +2333,11 @@ new file mode 100644
 +				     <GIC_SPI 64 IRQ_TYPE_LEVEL_HIGH>,
 +				     <GIC_SPI 64 IRQ_TYPE_LEVEL_HIGH>;
 +			interrupt-names = "gp", "gpmmu", "pp0";
-+			clocks = <&ccu CLK_PLL_GPU0>, <&ccu CLK_GPU0>,
-+				 <&ccu CLK_BUS_GPU0>;
++			clocks = <&ccu CLK_PLL_GPU>, <&ccu CLK_GPU>,
++				 <&ccu CLK_BUS_GPU>;
 +			clock-names = "clk_mali", "clk_mali_bus",
 +				      "clk_bus_mali";
-+			resets = <&ccu RST_BUS_GPU0>;
++			resets = <&ccu RST_BUS_GPU>;
 +			operating-points-v2 = <&gpu_opp_table>;
 +			power-domains = <&pck 2>;
 +
@@ -2467,16 +2468,16 @@ new file mode 100644
 +			pck_de: power-domain@1 {
 +				compatible = "allwinner,sun60i-a733-pd-de";
 +				#power-domain-cells = <0>;
-+				clocks = <&ccu CLK_DE0>,
-+					 <&ccu CLK_BUS_DE0>;
-+				resets = <&ccu RST_BUS_DE0>;
++				clocks = <&ccu CLK_DE>,
++					 <&ccu CLK_BUS_DE>;
++				resets = <&ccu RST_BUS_DE>;
 +			};
 +
 +			pck_gpu: power-domain@2 {
 +				compatible = "allwinner,sun60i-a733-pd-gpu";
 +				#power-domain-cells = <0>;
-+				clocks = <&ccu CLK_GPU0>;
-+				resets = <&ccu RST_BUS_GPU0>;
++				clocks = <&ccu CLK_GPU>;
++				resets = <&ccu RST_BUS_GPU>;
 +			};
 +
 +			pck_pcie: power-domain@3 {
@@ -2511,7 +2512,7 @@ new file mode 100644
 +		sunxi-dram-freq@2020000 {
 +			compatible = "allwinner,sun60i-a733-dramfreq";
 +			reg = <0x02020000 0x10000>;
-+			clocks = <&ccu CLK_PLL_DDR0>, <&ccu CLK_PLL_DDR1>;
++			clocks = <&ccu CLK_PLL_DDR>, <&ccu CLK_PLL_DDR1>;
 +			clock-names = "pll-ddr0", "pll-ddr1";
 +			status = "disabled";
 +		};
@@ -2531,7 +2532,7 @@ new file mode 100644
 index 000000000..466c60e37
 --- /dev/null
 +++ b/arch/arm64/configs/orangepi_4pro_defconfig
-@@ -0,0 +1,662 @@
+@@ -0,0 +1,668 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/arm64 7.1.5 Kernel Configuration
@@ -12147,7 +12148,7 @@ new file mode 100644
 index 000000000..a455afa01
 --- /dev/null
 +++ b/include/dt-bindings/clock/sun60i-a733-ccu.h
-@@ -0,0 +1,180 @@
+@@ -0,0 +1,190 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +/*
 + * Device Tree binding constants for Allwinner A733 CCU
@@ -12287,6 +12288,13 @@ index 000000000..a455afa01
 +#define CLK_USB_SUSPEND		115
 +#define CLK_AUDIO		CLK_PLL_AUDIO0_4X
 +
++/* PLL DDR1 (second DDR PLL) */
++#define CLK_PLL_DDR1		116
++
++/* PCIe clocks */
++#define CLK_PCIE0_AUX		117
++#define CLK_PCIE0_AXI_SLV	118
++
 +/* Resets (active-low, bit positions in reset register) */
 +#define RST_BUS_UART0		0
 +#define RST_BUS_UART1		1
@@ -12327,13 +12335,16 @@ index 000000000..a455afa01
 +#define RST_BUS_DRC		36
 +#define RST_BUS_MSGBOX		37
 +
++/* PCIe reset */
++#define RST_BUS_PCIE0		38
++
 +#endif /* _DT_BINDINGS_CLK_SUN60I_A733_CCU_H_ */
 diff --git a/include/dt-bindings/clock/sun60i-a733-r-ccu.h b/include/dt-bindings/clock/sun60i-a733-r-ccu.h
 new file mode 100644
 index 000000000..431623835
 --- /dev/null
 +++ b/include/dt-bindings/clock/sun60i-a733-r-ccu.h
-@@ -0,0 +1,56 @@
+@@ -0,0 +1,63 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +/*
 + * Copyright (C) 2024 The Linux Foundation. All rights reserved.
@@ -12346,48 +12357,55 @@ index 000000000..431623835
 +
 +/* R-CCU / PRCM clock IDs (logical; used in DTS and driver) */
 +
-+#define R_CLK_OSC32K	
-+#define R_CLK_IOSC	
-+#define R_CLK_PLL_AUDIO0
++#define R_CLK_OSC32K		0
++#define R_CLK_IOSC		1
++#define R_CLK_PLL_AUDIO0	2
 +
 +/* RTC domain */
-+#define R_CLK_RTC_32K	
-+#define R_CLK_RTC_1K	
-+#define R_CLK_CEC_32K	
++#define R_CLK_RTC_32K		3
++#define R_CLK_RTC_1K		4
++#define R_CLK_CEC_32K		5
 +
 +/* Reset- / low-power-domain bus clocks */
-+#define R_CLK_R_PIO	
-+#define R_CLK_R_APB1	
++#define R_CLK_R_PIO		6
++#define R_CLK_R_APB1		7
 +
 +/* Peripheral clocks in the R domain */
-+#define R_CLK_R_UART	
-+#define R_CLK_R_I2C	
-+#define R_CLK_R_PWM	
-+#define R_CLK_R_SPINLOCK
-+#define R_CLK_R_THERMAL	
-+#define R_CLK_R_SID	
-+#define R_CLK_R_CPUCFG	
++#define R_CLK_R_UART		8
++#define R_CLK_R_I2C		9
++#define R_CLK_R_PWM		10
++#define R_CLK_R_SPINLOCK	11
++#define R_CLK_R_THERMAL		12
++#define R_CLK_R_SID		13
++#define R_CLK_R_CPUCFG		14
 +
 +/* Module clocks inside R domain */
-+#define R_CLK_R_UART_CK	
-+#define R_CLK_R_I2C_CK	
-+#define R_CLK_THERMAL_SENSOR
-+#define R_CLK_R_SID_CK	
++#define R_CLK_R_UART_CK		15
++#define R_CLK_R_I2C_CK		16
++#define R_CLK_THERMAL_SENSOR	17
++#define R_CLK_R_SID_CK		18
 +
 +/* Fixed dividers */
-+#define R_CLK_R_AHB	
-+#define R_CLK_R_APB1_DIV
++#define R_CLK_R_AHB		19
++#define R_CLK_R_APB1_DIV	20
++
++/* R-PPU clocks */
++#define R_CLK_R_PPU		21
 +
 +/* R-CCU resets */
-+#define R_RST_RTC	
-+#define R_RST_R_PIO	
-+#define R_RST_R_UART	
-+#define R_RST_R_I2C	
-+#define R_RST_R_PWM	
-+#define R_RST_R_SPINLOCK
-+#define R_RST_R_THERMAL	
-+#define R_RST_R_SID	
-+#define R_RST_R_CPUCFG	
++#define R_RST_RTC		0
++#define R_RST_R_PIO		1
++#define R_RST_R_UART		2
++#define R_RST_R_I2C		3
++#define R_RST_R_PWM		4
++#define R_RST_R_SPINLOCK	5
++#define R_RST_R_THERMAL		6
++#define R_RST_R_SID		7
++#define R_RST_R_CPUCFG		8
++
++/* R-PPU resets */
++#define R_RST_R_PPU0		9
++#define R_RST_R_PPU1		10
 +
 +#endif /* _DT_BINDINGS_CLK_SUN60I_A733_R_CCU_H_ */
 diff --git a/include/dt-bindings/gpio/sun60i-a733-gpio.h b/include/dt-bindings/gpio/sun60i-a733-gpio.h
@@ -12721,9 +12739,9 @@ diff --git a/drivers/power/supply/Makefile b/drivers/power/supply/Makefile
  obj-$(CONFIG_BATTERY_CW2015)	+= cw2015_battery.o
  obj-$(CONFIG_BATTERY_DS2760)	+= ds2760_battery.o
 +obj-$(CONFIG_POWER_SUPPLY_AXP8191)	+= axp8191-power-supply.o axp8191-battery.o axp8191-onkey.o
- obj-$(CONFIG_BATTERY_GOLDFISH)	+= goldfish_battery.o
- obj-$(CONFIG_BATTERY_IDTECH)	+= idtech700_battery.o
- obj-$(CONFIG_BATTERY_MAX17040)	+= max17040_battery.o
+ obj-$(CONFIG_BATTERY_DS2780)	+= ds2780_battery.o
+ obj-$(CONFIG_BATTERY_DS2781)	+= ds2781_battery.o
+ obj-$(CONFIG_BATTERY_DS2782)	+= ds2782_battery.o
 diff --git a/drivers/power/supply/axp8191-power-supply.c b/drivers/power/supply/axp8191-power-supply.c
 new file mode 100644
 index 000000000..000000001

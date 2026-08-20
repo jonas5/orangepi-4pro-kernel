@@ -171,6 +171,13 @@
 #define CLK_CCI			124
 #define CLK_DSP			125
 
+/* PLL DDR1 (second DDR PLL) */
+#define CLK_PLL_DDR1		126
+
+/* PCIe clocks */
+#define CLK_PCIE0_AUX		127
+#define CLK_PCIE0_AXI_SLV	128
+
 /* Resets (active-low, bit positions in reset register) */
 #define RST_BUS_UART0		0
 #define RST_BUS_UART1		1
@@ -212,5 +219,8 @@
 #define RST_BUS_GPADC		34
 #define RST_BUS_LRADC		35
 #define RST_BUS_PWM		36
+
+/* PCIe reset */
+#define RST_BUS_PCIE0		37
 
 #endif /* _DT_BINDINGS_CLK_SUN60I_A733_CCU_H_ */
