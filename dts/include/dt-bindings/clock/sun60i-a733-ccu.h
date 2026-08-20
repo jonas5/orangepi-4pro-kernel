@@ -226,6 +226,9 @@
 /* PCIe reset */
 #define RST_BUS_PCIE0		37
 
+/* Thermal reset */
+#define RST_BUS_THERMAL		38
+
 /*
  * Vendor-name aliases (DTSI uses these names, which map to the
  * canonical indices above).

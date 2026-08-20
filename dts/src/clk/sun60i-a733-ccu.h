@@ -223,4 +223,7 @@
 /* PCIe reset */
 #define RST_BUS_PCIE0		37
 
+/* Thermal reset */
+#define RST_BUS_THERMAL		38
+
 #endif /* _DT_BINDINGS_CLK_SUN60I_A733_CCU_H_ */
