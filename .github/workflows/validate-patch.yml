@@ -1,0 +1,47 @@
+name: Patch Validation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'patch/**'
+      - 'dts/**'
+      - '.github/workflows/validate-patch.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'patch/**'
+      - 'dts/**'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout kernel repo
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu bc bison flex libssl-dev libncurses-dev
+
+      - name: Download kernel source
+        run: |
+          wget -q https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.1.5.tar.xz
+          tar xf linux-7.1.5.tar.xz
+          cd linux-7.1.5
+          make ARCH=arm64 defconfig
+
+      - name: Apply patch
+        run: |
+          cd linux-7.1.5
+          patch -p1 < $GITHUB_WORKSPACE/patch/opi4pro-7.1.5.patch
+
+      - name: Build kernel (quick check)
+        run: |
+          cd linux-7.1.5
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(nproc) Image dtbs modules 2>&1 | tail -20
+
+      - name: Verify DTB exists
+        run: |
+          ls -la linux-7.1.5/arch/arm64/boot/dts/allwinner/sun60i-a733-orangepi-4-pro.dtb
