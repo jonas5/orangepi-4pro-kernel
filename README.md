@@ -1,5 +1,7 @@
 # Orange Pi 4 Pro — Linux 7.1.5 Kernel Patch
 
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-jonas5-yellow?logo=buy-me-a-coffee&logoColor=white)](https://buymeacoffee.com/jonas5)
+
 Out-of-tree support for the **Orange Pi 4 Pro** single-board computer on **Linux 7.1.5**.
 
 ## Hardware
