@@ -22,6 +22,11 @@
 		stdout-path = "serial2:115200n8";
 	};
 
+	memory@40000000 {
+		device_type = "memory";
+		reg = <0x40000000 0x40000000>;
+	};
+
 	reserved-memory {
 		#address-cells = <1>;
 		#size-cells = <1>;
@@ -123,33 +128,11 @@
 };
 
 &r_pio {
-	/* Board-specific pin groups */
-
-	/* UART2 pins */
-	uart2_pins: uart2-pins {
-		pins = "PB0", "PB1";
-		function = "uart2";
-	};
-
-	/* R_PIO pins */
+	/* R_PIO pins (PL bank only) */
 	r_i2c0_pins: r-i2c0-pins {
 		pins = "PL0", "PL1";
 		function = "r_i2c0";
 		drive-strength = <40>;
-	};
-
-	wifi_enable_pin: wifi-enable-pin {
-		pins = "PI9";
-		function = "gpio";
-		drive-strength = <10>;
-		output-low;
-	};
-
-	gmac_rst_pin: gmac-rst-pin {
-		pins = "PB13";
-		function = "gpio";
-		drive-strength = <10>;
-		output-high;
 	};
 };
 
@@ -809,6 +792,28 @@
 };
 
 &pio {
+	/* UART2 pins (PB0/PB1 = main PIO domain) */
+	uart2_pins: uart2-pins {
+		pins = "PB0", "PB1";
+		function = "uart2";
+	};
+
+	/* WiFi enable (PI9 = main PIO domain) */
+	wifi_enable_pin: wifi-enable-pin {
+		pins = "PI9";
+		function = "gpio";
+		drive-strength = <10>;
+		output-low;
+	};
+
+	/* GMAC reset (PB13 = main PIO domain) */
+	gmac_rst_pin: gmac-rst-pin {
+		pins = "PB13";
+		function = "gpio";
+		drive-strength = <10>;
+		output-high;
+	};
+
 	ths_pin: ths-pin {
 		pins = "PB12";
 		function = "gpio";
