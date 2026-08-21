@@ -23,7 +23,6 @@
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/stmmac.h>
-#include <linux/stmmac/mdio.h>
 
 #define GMAC_SUN60I_NAME	"sun60i-gmac"
 
