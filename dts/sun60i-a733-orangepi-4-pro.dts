@@ -12,8 +12,6 @@
 / {
 	model = "Orange Pi 4 Pro";
 	compatible = "xunlong,orangepi-4-pro", "allwinner,sun60i-a733", "arm,v8";
-	#address-cells = <2>;
-	#size-cells = <2>;
 
 	aliases {
 		serial0 = &uart0;
@@ -27,16 +25,16 @@
 
 	memory@40000000 {
 		device_type = "memory";
-		reg = <0x0 0x40000000 0x3 0x00000000>;
+		reg = <0x40000000 0x40000000>;
 	};
 
 	reserved-memory {
-		#address-cells = <2>;
-		#size-cells = <2>;
+		#address-cells = <1>;
+		#size-cells = <1>;
 		ranges;
 
 		bl31@48000000 {
-			reg = <0x0 0x48000000 0x0 0x01000000>;
+			reg = <0x48000000 0x01000000>;
 			no-map;
 		};
 	};

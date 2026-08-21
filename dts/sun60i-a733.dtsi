@@ -17,8 +17,8 @@
 
 / {
 	interrupt-parent = <&gic>;
-	#address-cells = <2>;
-	#size-cells = <2>;
+	#address-cells = <1>;
+	#size-cells = <1>;
 
 	osc24M: osc26M: osc26M-clk {
 		#clock-cells = <0>;
@@ -516,8 +516,8 @@
 		compatible = "simple-bus";
 		#address-cells = <1>;
 		#size-cells = <1>;
-		ranges = <0x0 0x0 0x0 0x40000000>;
-		dma-ranges = <0x40000000 0x0 0x40000000 0xc0000000>;
+		ranges;
+		dma-ranges;
 
 		ccu: clock-controller@2002000 {
 			compatible = "allwinner,sun60i-a733-ccu";
