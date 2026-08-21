@@ -12,6 +12,9 @@
 / {
 	model = "Orange Pi 4 Pro";
 	compatible = "xunlong,orangepi-4-pro", "allwinner,sun60i-a733", "arm,v8";
+	#address-cells = <2>;
+	#size-cells = <2>;
+
 	aliases {
 		serial0 = &uart0;
 		serial1 = &uart1;
@@ -24,16 +27,16 @@
 
 	memory@40000000 {
 		device_type = "memory";
-		reg = <0x40000000 0x40000000>;
+		reg = <0x0 0x40000000 0x3 0x00000000>;
 	};
 
 	reserved-memory {
-		#address-cells = <1>;
-		#size-cells = <1>;
+		#address-cells = <2>;
+		#size-cells = <2>;
 		ranges;
 
 		bl31@48000000 {
-			reg = <0x48000000 0x1000000>;
+			reg = <0x0 0x48000000 0x0 0x01000000>;
 			no-map;
 		};
 	};
@@ -74,13 +77,23 @@
 		regulator-boot-on;
 	};
 
+	vcc_pcie3v3: vcc-pcie3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-pcie3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		enable-active-high;
+		gpio = <&r_pio 0 3 GPIO_ACTIVE_HIGH>; /* PL3: PCIE_PWREN_H */
+		regulator-boot-on;
+	};
+
 	usb0_vbus: usb0-vbus {
 		compatible = "regulator-fixed";
 		regulator-name = "usb0-vbus";
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 		enable-active-high;
-		gpio = <&pio 8 16 GPIO_ACTIVE_HIGH>; /* PH16 */
+		gpio = <&pio 4 9 GPIO_ACTIVE_HIGH>; /* PE9: USB20_EN */
 		regulator-boot-on;
 	};
 
@@ -90,30 +103,24 @@
 		regulator-min-microvolt = <5000000>;
 		regulator-max-microvolt = <5000000>;
 		enable-active-low;
-		gpio = <&pio 7 7 GPIO_ACTIVE_LOW>; /* PB7 */
+		gpio = <&pio 1 7 GPIO_ACTIVE_LOW>; /* PB7: PWREN1# */
 		regulator-always-on;
 		regulator-boot-on;
-	};
-
-	reg_gmac_3v3: gmac-3v3 {
-		compatible = "regulator-fixed";
-		regulator-name = "gmac-3v3";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		regulator-boot-on;
-		enable-active-high;
-		pinctrl-names = "default";
-		pinctrl-0 = <&gmac_rst_pin>;
 	};
 
 	wifi_pwrseq: wifi-pwrseq {
 		compatible = "mmc-pwrseq-simple";
 		clocks = <&osc24M>;
-		clock-frequency = <24000000>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&wifi_enable_pin>;
-		reset-gpios = <&pio 9 9 GPIO_ACTIVE_LOW>; /* PI9 */
+		clock-frequency = <26000000>;
+		reset-gpios = <&r_pio 1 1 GPIO_ACTIVE_LOW>; /* PM1: WL_REG_ON */
 		post-power-on-delay-ms = <200>;
+	};
+
+	rfkill_bt: rfkill-bt {
+		compatible = "rfkill-gpio";
+		label = "rfkill-bluetooth";
+		radio-type = "bluetooth";
+		enable-gpios = <&r_pio 1 2 GPIO_ACTIVE_HIGH>; /* PM2: BT_REG_ON */
 	};
 
 	leds {
@@ -121,7 +128,7 @@
 
 		led-green {
 			label = "green-led";
-			gpios = <&pio 9 8 GPIO_ACTIVE_HIGH>; /* PI8 */
+			gpios = <&pio 1 6 GPIO_ACTIVE_HIGH>; /* PB6: PWM_LED1 */
 			default-state = "on";
 		};
 	};
@@ -147,6 +154,11 @@
 	pinctrl-0 = <&uart1_pg6_pins>, <&uart1_rts_cts_pins>;
 	uart-has-rtscts;
 	status = "okay";
+
+	bluetooth {
+		compatible = "aic,aic8800";
+		enable-gpios = <&r_pio 1 2 GPIO_ACTIVE_HIGH>; /* PM2: BT_REG_ON */
+	};
 };
 
 &uart2 {
@@ -155,94 +167,17 @@
 	status = "okay";
 };
 
-&i2c0 {
+&i2c5 {
 	pinctrl-names = "default";
-	pinctrl-0 = <&i2c0_pins>;
-	status = "okay";
-
-	axp515: pmic@34 {
-		compatible = "x-powers,axp515";
-		reg = <0x34>;
-		interrupt-parent = <&nmi_intc>;
-		interrupts = <0 IRQ_TYPE_LEVEL_LOW>;
-		interrupt-controller;
-		#interrupt-cells = <1>;
-
-		x-powers,master-mode-reg = <0x3f>;
-		x-powers,drive-vbus-en;
-		pmu_hot_shutdown = <1>;
-		wakeup-source;
-
-		regulators {
-			reg_dldo1: dldo1 {
-				regulator-always-on;
-				regulator-name = "axp515-dldo1";
-				regulator-min-microvolt = <1800000>;
-				regulator-max-microvolt = <1800000>;
-				regulator-enable-ramp-delay = <1000>;
-			};
-
-			reg_dldo2: dldo2 {
-				regulator-always-on;
-				regulator-name = "axp515-dldo2";
-				regulator-min-microvolt = <1800000>;
-				regulator-max-microvolt = <1800000>;
-				regulator-enable-ramp-delay = <1000>;
-			};
-
-			reg_dldo3: dldo3 {
-				regulator-always-on;
-				regulator-name = "axp515-dldo3";
-				regulator-min-microvolt = <1800000>;
-				regulator-max-microvolt = <1800000>;
-				regulator-enable-ramp-delay = <1000>;
-			};
-
-			reg_dldo4: dldo4 {
-				regulator-always-on;
-				regulator-name = "axp515-dldo4";
-				regulator-min-microvolt = <1800000>;
-				regulator-max-microvolt = <1800000>;
-				regulator-enable-ramp-delay = <1000>;
-			};
-
-			reg_eldo1: eldo1 {
-				regulator-always-on;
-				regulator-name = "axp515-eldo1";
-				regulator-min-microvolt = <1800000>;
-				regulator-max-microvolt = <1800000>;
-				regulator-enable-ramp-delay = <1000>;
-			};
-
-			reg_eldo2: eldo2 {
-				regulator-always-on;
-				regulator-name = "axp515-eldo2";
-				regulator-min-microvolt = <1800000>;
-				regulator-max-microvolt = <1800000>;
-				regulator-enable-ramp-delay = <1000>;
-			};
-
-			reg_drivevbus: drivevbus {
-				regulator-name = "drive-vbus";
-				regulator-min-microvolt = <5000000>;
-				regulator-max-microvolt = <5000000>;
-				regulator-boot-on;
-			};
-		};
-	};
-};
-
-&i2c9 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&i2c9_pins>;
+	pinctrl-0 = <&i2c5_pins>;
 	status = "okay";
 
 	gt9271: touchscreen@14 {
 		compatible = "goodix,gt9271";
 		reg = <0x14>;
 		interrupt-parent = <&pio>;
-		interrupts = <1 25 IRQ_TYPE_LEVEL_HIGH>; /* PJ25 */
-		reset-gpios = <&pio 1 10 GPIO_ACTIVE_HIGH>; /* PG10 */
+		interrupts = <9 25 IRQ_TYPE_LEVEL_HIGH>; /* PJ25 */
+		reset-gpios = <&pio 6 10 GPIO_ACTIVE_HIGH>; /* PG10 */
 		touchscreen-inverted-x;
 		touchscreen-swapped-x-y;
 		touchscreen-size-x = <1280>;
@@ -252,12 +187,18 @@
 	};
 };
 
-&pio {
-	gt9271_irq_pin: gt9271-irq-pin {
-		pins = "PJ25";
-		function = "gpio";
-		drive-strength = <10>;
-		bias-pull-up;
+&i2c7 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2c7_pins>;
+	status = "okay";
+
+	es8388: audio-codec@10 {
+		compatible = "everest,es8388";
+		reg = <0x10>;
+		assigned-clocks = <&ccu CLK_AUDIO>;
+		assigned-clock-rates = <24576000>;
+		clocks = <&ccu CLK_AUDIO>;
+		clock-names = "mclk";
 	};
 };
 
@@ -317,7 +258,7 @@
 				regulator-enable-ramp-delay = <1000>;
 			};
 
-			dcdc4 {
+			reg_dcdc4: dcdc4 {
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-name = "axp8191-dcdc4";
@@ -495,7 +436,7 @@
 				regulator-enable-ramp-delay = <1000>;
 			};
 
-			dldo1 {
+			reg_dldo1: dldo1 {
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-name = "axp8191-dldo1";
@@ -504,7 +445,7 @@
 				regulator-enable-ramp-delay = <1000>;
 			};
 
-			dldo2 {
+			reg_dldo2: dldo2 {
 				regulator-name = "axp8191-dldo2";
 				regulator-min-microvolt = <500000>;
 				regulator-max-microvolt = <3400000>;
@@ -589,7 +530,7 @@
 				regulator-enable-ramp-delay = <1000>;
 			};
 
-			dc1sw1 {
+			dc1sw1: dc1sw1 {
 				regulator-always-on;
 				regulator-boot-on;
 				regulator-name = "axp8191-dc1sw1";
@@ -601,23 +542,13 @@
 			};
 		};
 	};
-
-	es8388: audio-codec@10 {
-		compatible = "everest,es8388";
-		reg = <0x10>;
-		assigned-clocks = <&ccu CLK_AUDIO>;
-		assigned-clock-rates = <24576000>;
-		clocks = <&ccu CLK_AUDIO>;
-		clock-names = "mclk";
-	};
 };
 
 &mmc0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&mmc0_pins>, <&mmc0_cd_pin>;
 	vmmc-supply = <&reg_dldo1>;
-	cd-gpios = <&pio 6 6 GPIO_ACTIVE_LOW>; /* PF6 */
-	wp-gpios = <&pio 6 2 GPIO_ACTIVE_HIGH>; /* PF2 */
+	cd-gpios = <&pio 5 6 GPIO_ACTIVE_LOW>; /* PF6 */
 	bus-width = <4>;
 	status = "okay";
 
@@ -647,8 +578,8 @@
 	sdio_wifi: sdio@1 {
 		compatible = "brcm,bcm4329-fmac";
 		reg = <1>;
-		interrupt-parent = <&pio>;
-		interrupts = <9 10 IRQ_TYPE_EDGE_FALLING>; /* PI10 */
+		interrupt-parent = <&r_pio>;
+		interrupts = <1 0 IRQ_TYPE_EDGE_FALLING>; /* PM0 */
 		interrupt-names = "host-wake";
 	};
 };
@@ -712,14 +643,16 @@
 	phy-handle = <&ext_gmac0_phy>;
 	tx-delay = <12>;
 	rx-delay = <10>;
-	phy-supply = <&reg_gmac_3v3>;
-	phy-power-supply = <&reg_gmac_3v3>;
+	phy-supply = <&dc1sw1>;
 	status = "okay";
 
 	mdio0: mdio {
 		ext_gmac0_phy: ethernet-phy@1 {
-			reg = <1>;
 			compatible = "ethernet-phy-ieee802.3-c22";
+			reg = <1>;
+			reset-gpios = <&pio 7 16 GPIO_ACTIVE_LOW>; /* PH16 */
+			reset-assert-us = <10000>;
+			reset-deassert-us = <30000>;
 		};
 	};
 };
@@ -750,9 +683,8 @@
 };
 
 &pcie {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pcie_pins>;
-	reset-gpios = <&pio 8 11 GPIO_ACTIVE_LOW>; /* PH11 */
+	reset-gpios = <&pio 3 22 GPIO_ACTIVE_LOW>; /* PD22 */
+	vpcie3v3-supply = <&vcc_pcie3v3>;
 	status = "okay";
 };
 
@@ -767,7 +699,7 @@
 };
 
 &gpu {
-	mali-supply = <&reg_dcdc2>;
+	mali-supply = <&reg_dcdc4>;
 	status = "okay";
 };
 
@@ -798,30 +730,15 @@
 		function = "uart2";
 	};
 
-	/* WiFi enable (PI9 = main PIO domain) */
-	wifi_enable_pin: wifi-enable-pin {
-		pins = "PI9";
+	gt9271_irq_pin: gt9271-irq-pin {
+		pins = "PJ25";
 		function = "gpio";
 		drive-strength = <10>;
-		output-low;
-	};
-
-	/* GMAC reset (PB13 = main PIO domain) */
-	gmac_rst_pin: gmac-rst-pin {
-		pins = "PB13";
-		function = "gpio";
-		drive-strength = <10>;
-		output-high;
+		bias-pull-up;
 	};
 
 	ths_pin: ths-pin {
 		pins = "PB12";
-		function = "gpio";
-		drive-strength = <10>;
-	};
-
-	pcie_pins: pcie-pins {
-		pins = "PH11";
 		function = "gpio";
 		drive-strength = <10>;
 	};

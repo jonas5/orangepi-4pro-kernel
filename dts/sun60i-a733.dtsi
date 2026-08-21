@@ -17,14 +17,14 @@
 
 / {
 	interrupt-parent = <&gic>;
-	#address-cells = <1>;
-	#size-cells = <1>;
+	#address-cells = <2>;
+	#size-cells = <2>;
 
-	osc24M: osc24M-clk {
+	osc24M: osc26M: osc26M-clk {
 		#clock-cells = <0>;
 		compatible = "fixed-clock";
-		clock-frequency = <24000000>;
-		clock-output-names = "osc24M";
+		clock-frequency = <26000000>;
+		clock-output-names = "osc26M";
 	};
 
 	iosc: iosc-clk {
@@ -512,11 +512,12 @@
 		};
 	};
 
-	soc@3000000 {
+	soc: soc@0 {
 		compatible = "simple-bus";
 		#address-cells = <1>;
 		#size-cells = <1>;
-		ranges;
+		ranges = <0x0 0x0 0x0 0x40000000>;
+		dma-ranges = <0x40000000 0x0 0x40000000 0xc0000000>;
 
 		ccu: clock-controller@2002000 {
 			compatible = "allwinner,sun60i-a733-ccu";
@@ -564,10 +565,20 @@
 		gic: interrupt-controller@3400000 {
 			compatible = "arm,gic-v3";
 			reg = <0x03400000 0x10000>,
-			      <0x03460000 0xff004>;
+			      <0x03460000 0x100000>;
 			interrupt-controller;
-			interrupt-cells = <3>;
+			#interrupt-cells = <3>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
 			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
+
+			its: msi-controller@3440000 {
+				compatible = "arm,gic-v3-its";
+				reg = <0x03440000 0x20000>;
+				msi-controller;
+				#msi-cells = <1>;
+			};
 		};
 
 		pio: pinctrl@2000000 {
@@ -629,8 +640,15 @@
 
 			/* I2C5 pins */
 			i2c5_pins: i2c5-pins {
-				pins = "PH6", "PH7";
+				pins = "PJ26", "PJ27";
 				function = "i2c5";
+				drive-strength = <40>;
+			};
+
+			/* I2C7 pins */
+			i2c7_pins: i2c7-pins {
+				pins = "PJ22", "PJ23";
+				function = "i2c7";
 				drive-strength = <40>;
 			};
 
@@ -1055,7 +1073,7 @@
 			interrupts = <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>;
 			reg-shift = <2>;
 			reg-io-width = <4>;
-			clocks = <&ccu CLK_BUS_UART5>;
+			clocks = <&ccu CLK_BUS_UART6>;
 			resets = <&ccu RST_BUS_UART6>;
 			dmas = <&dma 20>, <&dma 20>;
 			dma-names = "tx", "rx";
@@ -1410,22 +1428,15 @@
 			#address-cells = <3>;
 			#size-cells = <2>;
 			device_type = "pci";
-
-			pci0: pci@0,0 {
-				reg = <0x000000 0 0 0 0>;
-				#address-cells = <3>;
-				#size-cells = <2>;
-				device_type = "pci";
-				ranges;
-				interrupt-map-mask = <0 0 0 7>;
-				interrupt-map = <0 0 0 1 &gic GIC_SPI 136 IRQ_TYPE_LEVEL_HIGH
-						 0 0 0 2 &gic GIC_SPI 137 IRQ_TYPE_LEVEL_HIGH
-						 0 0 0 3 &gic GIC_SPI 138 IRQ_TYPE_LEVEL_HIGH
-						 0 0 0 4 &gic GIC_SPI 139 IRQ_TYPE_LEVEL_HIGH
-						 0 0 0 5 &gic GIC_SPI 140 IRQ_TYPE_LEVEL_HIGH
-						 0 0 0 6 &gic GIC_SPI 141 IRQ_TYPE_LEVEL_HIGH
-						 0 0 0 7 &gic GIC_SPI 142 IRQ_TYPE_LEVEL_HIGH>;
-			};
+			#interrupt-cells = <1>;
+			interrupt-map-mask = <0 0 0 7>;
+			interrupt-map = <0 0 0 1 &gic 0 GIC_SPI 136 IRQ_TYPE_LEVEL_HIGH>,
+					<0 0 0 2 &gic 0 GIC_SPI 137 IRQ_TYPE_LEVEL_HIGH>,
+					<0 0 0 3 &gic 0 GIC_SPI 138 IRQ_TYPE_LEVEL_HIGH>,
+					<0 0 0 4 &gic 0 GIC_SPI 139 IRQ_TYPE_LEVEL_HIGH>,
+					<0 0 0 5 &gic 0 GIC_SPI 140 IRQ_TYPE_LEVEL_HIGH>,
+					<0 0 0 6 &gic 0 GIC_SPI 141 IRQ_TYPE_LEVEL_HIGH>,
+					<0 0 0 7 &gic 0 GIC_SPI 142 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
 		gmac0: ethernet@4500000 {
@@ -1485,6 +1496,7 @@
 			resets = <&ccu RST_BUS_GPU>;
 			operating-points-v2 = <&gpu_opp_table>;
 			power-domains = <&pck 2>;
+			#cooling-cells = <2>;
 
 			gpu_opp_table: opp-table {
 				compatible = "operating-points-v2";
@@ -1598,9 +1610,13 @@
 			compatible = "allwinner,sun60i-a733-power-controller",
 				     "syscon", "simple-mfd";
 			reg = <0x07060000 0xb000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			#power-domain-cells = <1>;
 
-			pck_usb: power-domain {
+			pck_usb: power-domain@0 {
 				compatible = "allwinner,sun60i-a733-pd-usb";
+				reg = <0>;
 				#power-domain-cells = <0>;
 				clocks = <&ccu CLK_USB0>,
 					 <&ccu CLK_USB1>,
@@ -1612,6 +1628,7 @@
 
 			pck_de: power-domain@1 {
 				compatible = "allwinner,sun60i-a733-pd-de";
+				reg = <1>;
 				#power-domain-cells = <0>;
 				clocks = <&ccu CLK_DE>,
 					 <&ccu CLK_BUS_DE>;
@@ -1620,6 +1637,7 @@
 
 			pck_gpu: power-domain@2 {
 				compatible = "allwinner,sun60i-a733-pd-gpu";
+				reg = <2>;
 				#power-domain-cells = <0>;
 				clocks = <&ccu CLK_GPU>;
 				resets = <&ccu RST_BUS_GPU>;
@@ -1627,6 +1645,7 @@
 
 			pck_pcie: power-domain@3 {
 				compatible = "allwinner,sun60i-a733-pd-pcie";
+				reg = <3>;
 				#power-domain-cells = <0>;
 				clocks = <&ccu CLK_PCIE0_AUX>,
 					 <&ccu CLK_PCIE0_AXI_SLV>;
@@ -1635,7 +1654,7 @@
 
 			r_ppu0: r-ppu@1000 {
 				compatible = "allwinner,sunxi-r-ppu-v1";
-				reg = <0x07001000 0x400>;
+				reg = <0x1000>;
 				interrupts = <GIC_SPI 195 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&r_ccu CLK_R_PPU>;
 				clock-names = "r-ppu";
@@ -1645,7 +1664,7 @@
 
 			r_ppu1: r-ppu@1400 {
 				compatible = "allwinner,sunxi-r-ppu-v1";
-				reg = <0x07001400 0x400>;
+				reg = <0x1400>;
 				interrupts = <GIC_SPI 197 IRQ_TYPE_LEVEL_HIGH>;
 				clocks = <&r_ccu CLK_R_PPU>;
 				clock-names = "r-ppu";

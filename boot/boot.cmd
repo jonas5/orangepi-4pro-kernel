@@ -7,7 +7,7 @@ env import -t ${loadaddr} ${filesize}
 part uuid mmc 0:1 rootdev
 
 # Build boot arguments
-setenv bootargs "console=ttyS0,115200 root=PARTUUID=${rootdev} rootwait rw rootfstype=ext4 loglevel=${verbosity} sunxi_fc=fdt,${fdtfile} cma=${cma} ${extraargs}"
+setenv bootargs "console=ttyS2,115200 root=PARTUUID=${rootdev} rootwait rw rootfstype=ext4 loglevel=${verbosity} sunxi_fc=fdt,${fdtfile} cma=${cma} ${extraargs}"
 
 # Charger mode: set "charger_mode=powerbank" in orangepiEnv.txt
 # to limit USB input current to 500mA (safe for power banks)

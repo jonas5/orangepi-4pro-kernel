@@ -57,6 +57,7 @@
 #define CLK_BUS_UART3		31
 #define CLK_BUS_UART4		32
 #define CLK_BUS_UART5		33
+#define CLK_BUS_UART6		168
 
 #define CLK_BUS_SPI0		34
 #define CLK_BUS_SPI1		35

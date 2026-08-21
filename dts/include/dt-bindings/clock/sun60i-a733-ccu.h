@@ -345,6 +345,7 @@
 
 /* UART6 */
 #define CLK_UART6			168
+#define CLK_BUS_UART6			168
 
 /* New reset indices */
 #define RST_BUS_TWI7		55
