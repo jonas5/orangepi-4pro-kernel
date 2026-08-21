@@ -499,17 +499,17 @@ static SUNXI_CCU_M(dsp_div, "dsp-div", "pll-cpu-axi",
 
 /* ---- UART ---- */
 static SUNXI_CCU_GATE(clk_bus_uart0, "bus-uart0", "apb2",
-			  CCU_UART_BGR, BIT(31), 0);
+			  CCU_UART_BGR, BIT(31), CLK_IS_CRITICAL);
 static SUNXI_CCU_GATE(clk_bus_uart1, "bus-uart1", "apb2",
-			  CCU_UART_BGR, BIT(30), 0);
+			  CCU_UART_BGR, BIT(30), CLK_IS_CRITICAL);
 static SUNXI_CCU_GATE(clk_bus_uart2, "bus-uart2", "apb2",
-			  CCU_UART_BGR, BIT(29), 0);
+			  CCU_UART_BGR, BIT(29), CLK_IS_CRITICAL);
 static SUNXI_CCU_GATE(clk_bus_uart3, "bus-uart3", "apb2",
-			  CCU_UART_BGR, BIT(28), 0);
+			  CCU_UART_BGR, BIT(28), CLK_IS_CRITICAL);
 static SUNXI_CCU_GATE(clk_bus_uart4, "bus-uart4", "apb2",
-			  CCU_UART_BGR, BIT(27), 0);
+			  CCU_UART_BGR, BIT(27), CLK_IS_CRITICAL);
 static SUNXI_CCU_GATE(clk_bus_uart5, "bus-uart5", "apb2",
-			  CCU_UART_BGR, BIT(26), 0);
+			  CCU_UART_BGR, BIT(26), CLK_IS_CRITICAL);
 
 /* ---- SPI ---- */
 static SUNXI_CCU_GATE(clk_bus_spi0, "bus-spi0", "apb2",
@@ -611,17 +611,17 @@ static SUNXI_CCU_GATE(clk_bus_rom, "bus-rom", "ahb",
 
 /* ---- UART module clocks: mux[25:24] selects parent ---- */
 static SUNXI_CCU_MUX(uart0_clk, "uart0", uart_parents,
-		     CCU_UART0_CLK_CFG, 24, 2, CLK_SET_RATE_PARENT);
+		     CCU_UART0_CLK_CFG, 24, 2, CLK_SET_RATE_PARENT | CLK_IS_CRITICAL);
 static SUNXI_CCU_MUX(uart1_clk, "uart1", uart_parents,
-		     CCU_UART1_CLK_CFG, 24, 2, CLK_SET_RATE_PARENT);
+		     CCU_UART1_CLK_CFG, 24, 2, CLK_SET_RATE_PARENT | CLK_IS_CRITICAL);
 static SUNXI_CCU_MUX(uart2_clk, "uart2", uart_parents,
-		     CCU_UART2_CLK_CFG, 24, 2, CLK_SET_RATE_PARENT);
+		     CCU_UART2_CLK_CFG, 24, 2, CLK_SET_RATE_PARENT | CLK_IS_CRITICAL);
 static SUNXI_CCU_MUX(uart3_clk, "uart3", uart_parents,
-		     CCU_UART3_CLK_CFG, 24, 2, CLK_SET_RATE_PARENT);
+		     CCU_UART3_CLK_CFG, 24, 2, CLK_SET_RATE_PARENT | CLK_IS_CRITICAL);
 static SUNXI_CCU_MUX(uart4_clk, "uart4", uart_parents,
-		     CCU_UART4_CLK_CFG, 24, 2, CLK_SET_RATE_PARENT);
+		     CCU_UART4_CLK_CFG, 24, 2, CLK_SET_RATE_PARENT | CLK_IS_CRITICAL);
 static SUNXI_CCU_MUX(uart5_clk, "uart5", uart_parents,
-		     CCU_UART5_CLK_CFG, 24, 2, CLK_SET_RATE_PARENT);
+		     CCU_UART5_CLK_CFG, 24, 2, CLK_SET_RATE_PARENT | CLK_IS_CRITICAL);
 
 /* ---- SPI module clocks: mux[25:24], divider[3:0] ---- */
 static SUNXI_CCU_M_WITH_MUX(spi0_mod_clk, "spi0-mod", spi_parents,

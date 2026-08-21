@@ -1,5 +1,7 @@
 # Orange Pi 4 Pro - Linux 7.1.5 boot script
 # Load environment
+setenv fdt_high "0xffffffffffffffff"
+setenv initrd_high "0xffffffffffffffff"
 ext4load mmc 0:1 ${loadaddr} /boot/orangepiEnv.txt
 env import -t ${loadaddr} ${filesize}
 
