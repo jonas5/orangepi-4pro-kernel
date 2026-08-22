@@ -9,7 +9,7 @@ overlay_prefix=sun60i-a733
 rootdev=PARTUUID=auto
 rootfstype=ext4
 cma=512M
-extraargs=pcie_aspm=powersave nmi_watchdog=0
+extraargs=earlycon=uart8250,mmio32,0x02502000 pcie_aspm=powersave nmi_watchdog=0
 
 # Charger mode: set to "powerbank" when powering from a USB power bank
 # to limit input current to 500mA. Remove or leave empty for wall adapter.

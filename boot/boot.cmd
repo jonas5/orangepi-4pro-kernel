@@ -1,7 +1,7 @@
 # Orange Pi 4 Pro - Linux 7.1.5 boot script
 # Load environment
-setenv fdt_high "0xffffffffffffffff"
-setenv initrd_high "0xffffffffffffffff"
+setenv fdt_high "off"
+setenv initrd_high "off"
 ext4load mmc 0:1 ${loadaddr} /boot/orangepiEnv.txt
 env import -t ${loadaddr} ${filesize}
 
@@ -21,6 +21,9 @@ fi
 ext4load mmc 0:1 ${ramdisk_addr_r} /boot/uInitrd
 ext4load mmc 0:1 ${kernel_addr_r} /boot/Image
 ext4load mmc 0:1 ${fdt_addr_r} /boot/dtb/allwinner/sun60i-a733-orangepi-4-pro.dtb
+
+fdt addr ${fdt_addr_r}
+fdt resize 0x10000
 
 # Boot
 booti ${kernel_addr_r} ${ramdisk_addr_r}:${filesize} ${fdt_addr_r}
