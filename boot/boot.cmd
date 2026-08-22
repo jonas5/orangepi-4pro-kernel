@@ -19,11 +19,27 @@ fi
 
 # Load boot files
 ext4load mmc 0:1 ${ramdisk_addr_r} /boot/uInitrd
+setenv initrd_size ${filesize}
 ext4load mmc 0:1 ${kernel_addr_r} /boot/Image
 ext4load mmc 0:1 ${fdt_addr_r} /boot/dtb/allwinner/sun60i-a733-orangepi-4-pro.dtb
+
+echo "=== U-BOOT BDINFO ==="
+bdinfo
+
+echo "=== U-BOOT ENV ==="
+printenv kernel_addr_r ramdisk_addr_r fdt_addr_r initrd_size fdt_high initrd_high bootargs
+
+echo "=== KERNEL HEADER AT ${kernel_addr_r} ==="
+md.l ${kernel_addr_r} 0x10
+
+echo "=== DTB HEADER AT ${fdt_addr_r} ==="
+md.l ${fdt_addr_r} 0x10
 
 fdt addr ${fdt_addr_r}
 fdt resize 0x10000
 
-# Boot
-booti ${kernel_addr_r} ${ramdisk_addr_r}:${filesize} ${fdt_addr_r}
+echo "=== FDT CHOSEN NODE ==="
+fdt print /chosen
+
+echo "=== EXECUTING BOOTI ==="
+booti ${kernel_addr_r} ${ramdisk_addr_r}:${initrd_size} ${fdt_addr_r}
