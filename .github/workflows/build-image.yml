@@ -68,6 +68,7 @@ jobs:
           # Copy unified patch to orangepi-build
           mkdir -p orangepi-build/external/patch/kernel/sun60iw2-next
           cp patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch orangepi-build/external/patch/kernel/sun60iw2-next/
+          cp patch/0300-packaging-armbian-builddeb.patch orangepi-build/external/patch/kernel/sun60iw2-next/
 
           # Copy modular defconfig
           mkdir -p orangepi-build/external/config/kernel

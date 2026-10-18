@@ -164,7 +164,7 @@ index 8a88ba9..b1d4262 100644
  		local BIN_PATH="${EXTER}/packages/pack-uboot/${BOARDFAMILY}/bin"
  		rm dts/*.dts sys_config ${BOARD}-u-boot-current.dtb -r 
 diff --git a/scripts/compilation.sh b/scripts/compilation.sh
-index 59c4f9c..85513f9 100755
+index 59c4f9c..7e6a617 100755
 --- a/scripts/compilation.sh
 +++ b/scripts/compilation.sh
 @@ -493,6 +493,7 @@ CUSTOM_KERNEL_CONFIG
@@ -192,3 +192,22 @@ index 59c4f9c..85513f9 100755
  		CROSS_COMPILE="$CCACHE $KERNEL_COMPILER" 2>>$DEST/${LOG_SUBPATH}/compilation.log' \
  		${PROGRESS_LOG_TO_FILE:+' | tee -a $DEST/${LOG_SUBPATH}/compilation.log'} \
  		${OUTPUT_DIALOG:+' | dialog --backtitle "$backtitle" --progressbox "Creating kernel packages..." $TTY_Y $TTY_X'} \
+@@ -555,6 +557,18 @@ CUSTOM_KERNEL_CONFIG
+ 
+ 	rsync --remove-source-files -rq ./*.deb "${DEB_STORAGE}/" || exit_with_error "Failed moving kernel DEBs"
+ 
++	# Ensure expected package names exist even if builddeb used upstream KERNELRELEASE
++	for pkg in image dtb headers libc-dev; do
++		local expected="${DEB_STORAGE}/linux-${pkg}-${BRANCH}-${LINUXFAMILY}_${REVISION}_${ARCH}.deb"
++		if [ ! -f "$expected" ]; then
++			local actual=$(ls "${DEB_STORAGE}"/linux-${pkg}-*_${REVISION}_${ARCH}.deb 2>/dev/null | grep -v -- "-dbg" | head -1)
++			if [ -n "$actual" ] && [ -f "$actual" ]; then
++				echo "Creating package link: $actual -> $expected"
++				cp -vf "$actual" "$expected"
++			fi
++		fi
++	done
++
+ 	[[ $(type -t family_tweaks_kernel) == function ]] && family_tweaks_kernel
+ 
+ 	# store git hash to the file and create a change log
