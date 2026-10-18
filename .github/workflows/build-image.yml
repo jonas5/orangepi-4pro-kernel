@@ -62,6 +62,9 @@ jobs:
 
       - name: Apply Orange Pi 4 Pro A733 patches and configuration
         run: |
+          # Apply orangepi-build harness patch (enables 6.18 next branch & u-boot packing)
+          git -C orangepi-build apply ../patch/orangepi-build.patch
+
           # Copy unified patch to orangepi-build
           mkdir -p orangepi-build/external/patch/kernel/sun60iw2-next
           cp patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch orangepi-build/external/patch/kernel/sun60iw2-next/
@@ -69,9 +72,6 @@ jobs:
           # Copy modular defconfig
           mkdir -p orangepi-build/external/config/kernel
           cp config/orangepi_4pro_defconfig orangepi-build/external/config/kernel/linux-sun60iw2-next-a733.config
-
-          # Update board config to not auto-bundle proprietary drivers into base image
-          sed -i 's/MODULES_NEXT=.*/MODULES_NEXT=""/' orangepi-build/external/config/boards/orangepi4pro.conf
 
       - name: Build SD Image via orangepi-build
         run: |

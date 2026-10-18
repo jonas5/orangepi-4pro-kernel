@@ -1,0 +1,194 @@
+diff --git a/.gitignore b/.gitignore
+index ee7931b..bb5140a 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -28,6 +28,7 @@ mkimage.sh
+ 
+ !external/patch/u-boot
+ !external/patch/kernel
++!external/patch/**/*.patch
+ !external/config/kernel
+ !external/packages/bsp/common/etc/kernel
+ !external/packages/bsp/rk3588/etc/kernel
+@@ -60,3 +61,16 @@ external/cache/sources/arm-trusted-firmware-sunxi-mainline
+ external/cache/debs/arm64/balenaEtcher-1.7.9+5945ab1f-arm64.AppImage
+ external/cache/debs/arm64/balena-etcher-electron_1.7.9+5945ab1f_arm64.deb
+ external/packages/bsp/overlays_cix/opt/make_bios_image/bios_flash/bios*.bin
++
++# Private BSP drivers, firmware, and on-demand bring-up scripts
++bsp/
++private/
++scripts/private/
++*.ko
++*.fw
++*-start.sh
++aic-bt-attach
++powervr-start.sh
++aic8800-start.sh
++external/cache/sources/allwinner-bsp/
++
+diff --git a/external/config/boards/orangepi4pro.conf b/external/config/boards/orangepi4pro.conf
+index 3674a3b..4759345 100755
+--- a/external/config/boards/orangepi4pro.conf
++++ b/external/config/boards/orangepi4pro.conf
+@@ -5,8 +5,10 @@ BOOTCONFIG="sun60iw2p1_t736_defconfig"
+ BOOT_LOGO="desktop"
+ BOOT_FDT_FILE="allwinner/sun60i-a733-orangepi-4-pro.dtb"
+ MODULES="aic8800_fdrv aic8800_btlpm pvrsrvkm"
+-KERNEL_TARGET="current legacy"
++MODULES_NEXT=""
++KERNEL_TARGET="current legacy next"
+ DISTRIB_TYPE_CURRENT="bookworm jammy bullseye resolute trixie"
+ DISTRIB_TYPE_LEGACY="bookworm jammy bullseye"
++DISTRIB_TYPE_NEXT="bookworm trixie resolute"
+ SKIP_BOOTSPLASH="yes" # Skip boot splash patch, conflicts with CONFIG_VT=yes
+ REVISION="1.1.0"
+diff --git a/external/config/sources/families/sun60iw2.conf b/external/config/sources/families/sun60iw2.conf
+index 8a88ba9..b1d4262 100644
+--- a/external/config/sources/families/sun60iw2.conf
++++ b/external/config/sources/families/sun60iw2.conf
+@@ -52,8 +52,82 @@ case $BRANCH in
+ 			LINUXCONFIG="linux-sun60iw2-current-a733"
+ 		fi
+ 	;;
++
++	next)
++		# Mainline/stable 6.18.y kernel + Allwinner sun60iw2 BSP userspace drivers.
++		# The BSP driver tree lives outside the kernel and is injected at kernel
++		# config time (see custom_kernel_config below).
++		if [[ $GITEE_SERVER == yes ]]; then
++			KERNELSOURCE="https://gitee.com/mirrors/linux.git"
++		else
++			KERNELSOURCE="https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git"
++		fi
++
++		KERNELBRANCH="branch:linux-6.18.y"
++		KERNEL_USE_GCC='> 8.0'
++		LINUXCONFIG="linux-sun60iw2-next"
++
++		if [[ "${BOARD}" =~ "orangepi4pro"|"orangepizero3w"|"orangepizero4" ]]; then
++			OVERLAY_PREFIX='sun60i-a733'
++			LINUXCONFIG="linux-sun60iw2-next-a733"
++		fi
++	;;
+ esac
+ 
++# Inject the Allwinner BSP driver tree (drivers/, platform/, include/, Kconfig)
++# into the kernel source at config time.  The tree contains prebuilt binary
++# archives, so it cannot be shipped as a regular patch; it is fetched and copied
++# in instead.  Requires BSP_TOP to be exported for the Kconfig preprocessor.
++ALLWINNER_BSP_SOURCE="https://github.com/alexcaoys/allwinner-bsp.git"
++ALLWINNER_BSP_BRANCH="branch:linux-6.18.y"
++
++custom_kernel_config()
++{
++	[[ $BRANCH == next && $LINUXFAMILY == sun60iw2 ]] || return 0
++
++	local bspdir="${EXTER}/cache/sources/allwinner-bsp"
++	# fetch_from_repo() cd's into the fetched directory; remember where we are.
++	local kerneldir_orig="$(pwd)"
++
++	if [[ $IGNORE_UPDATES != yes ]]; then
++		fetch_from_repo "$ALLWINNER_BSP_SOURCE" "$bspdir" "$ALLWINNER_BSP_BRANCH" "no"
++	fi
++
++	cd "$kerneldir_orig" || exit
++
++	if [[ ! -f "$bspdir/Kconfig" ]]; then
++		exit_with_error "Allwinner BSP source not found" "$bspdir"
++	fi
++
++	display_alert "Injecting Allwinner BSP driver tree" "$ALLWINNER_BSP_BRANCH" "info"
++
++	rm -rf bsp
++	mkdir -p bsp
++	rsync -a --exclude='.git' "$bspdir"/ bsp/
++
++	# The BSP repo does not ship sunxi-autogen.h (it is listed in .gitignore and
++	# is normally generated during the BSP's own build).  bsp/drivers/clk/sunxi-ng
++	# includes it for AW_BSP_VERSION, so create it explicitly.
++	mkdir -p bsp/include
++	printf '#define AW_BSP_VERSION "allwinner-bsp %s"\n' \
++		"$(git -C "$bspdir" rev-parse --short HEAD 2>/dev/null || echo unknown)" > bsp/include/sunxi-autogen.h
++
++	# Apply fix-up patches that adapt the BSP snapshot to 6.18.y kernel APIs.
++	# These cannot live in KERNELPATCHDIR (sun60iw2-next): advanced_patch() runs
++	# before this hook installs the BSP tree, so its changes would be wiped by
++	# the rsync above.
++	for fixup in "${EXTER}"/patch/kernel/sun60iw2-next-bsp/*.patch; do
++		[[ -f $fixup ]] || continue
++		display_alert "Applying BSP fixup" "$(basename "$fixup")" "info"
++		patch -p1 --batch --forward < "$fixup" || \
++			exit_with_error "BSP fixup patch failed" "$(basename "$fixup")"
++	done
++
++	# The BSP Kconfig files reference $(BSP_TOP); export an absolute path so the
++	# kconfig preprocessor can resolve it for olddefconfig/menuconfig.
++	export BSP_TOP="$(pwd)/bsp/"
++}
++
+ family_tweaks_s()
+ {
+ 	if [[ ${DESKTOP_ENVIRONMENT} == gnome ]]; then
+@@ -120,7 +194,7 @@ family_tweaks_s()
+ 
+ 	fi
+ 
+-	if [[ ${BRANCH} == current ]]; then
++	if [[ ${BRANCH} == current || ${BRANCH} == next ]]; then
+ 		SERIALCON="ttyS0"
+ 	fi
+ 
+@@ -161,8 +235,12 @@ family_tweaks_s()
+ 
+ 		local version
+ 		version=$(grab_version "$LINUXSOURCEDIR")
+-		install -m 755 -d $SDCARD/lib/modules/$version-$BOARDFAMILY/extra
+-		install -m 644 ${SRC}/.tmp/gpu_modules_sun60iw2/pvrsrvkm.ko $SDCARD/lib/modules/$version-$BOARDFAMILY/extra
++		# The 'next' (6.18) kernel ships the in-kernel etnaviv GPU driver instead
++		# of the out-of-tree BSP pvrsrvkm module.
++		if [[ $BRANCH != next ]]; then
++			install -m 755 -d $SDCARD/lib/modules/$version-$BOARDFAMILY/extra
++			install -m 644 ${SRC}/.tmp/gpu_modules_sun60iw2/pvrsrvkm.ko $SDCARD/lib/modules/$version-$BOARDFAMILY/extra
++		fi
+ 		depmod -b $SDCARD $version-$BOARDFAMILY
+ 
+ 		wget -nc -P ${EXTER}/cache/debs/arm64/ https://dl.google.com/linux/direct/google-chrome-stable_current_arm64.deb >>"${DEST}"/${LOG_SUBPATH}/install.log 2>&1
+@@ -182,7 +260,7 @@ family_tweaks_bsp()
+ uboot_custom_postprocess()
+ {
+ 
+-	if [[ ${BRANCH} =~ legacy|current && $(dpkg --print-architecture) == amd64 ]]; then
++	if [[ ${BRANCH} =~ legacy|current|next && $(dpkg --print-architecture) == amd64 ]]; then
+ 
+ 		local BIN_PATH="${EXTER}/packages/pack-uboot/${BOARDFAMILY}/bin"
+ 		rm dts/*.dts sys_config ${BOARD}-u-boot-current.dtb -r 
+diff --git a/scripts/compilation.sh b/scripts/compilation.sh
+index 59c4f9c..85513f9 100755
+--- a/scripts/compilation.sh
++++ b/scripts/compilation.sh
+@@ -493,6 +493,7 @@ CUSTOM_KERNEL_CONFIG
+ 	echo -e "\n\t== kernel ==\n" >> "${DEST}"/${LOG_SUBPATH}/compilation.log
+ 	eval CCACHE_BASEDIR="$(pwd)" env PATH="${toolchain}:${PATH}" \
+ 		'make $CTHREADS ARCH=$ARCHITECTURE \
++		KBUILD_MODPOST_WARN=1 \
+ 		CROSS_COMPILE="$CCACHE $KERNEL_COMPILER" \
+ 		$SRC_LOADADDR \
+ 		LOCALVERSION="-$LINUXFAMILY" \
+@@ -525,7 +526,7 @@ CUSTOM_KERNEL_CONFIG
+ 	#	make -C modules/gpu LICHEE_MOD_DIR=${SRC}/.tmp/gpu_modules_${LINUXFAMILY} LICHEE_KDIR=${kerneldir} CROSS_COMPILE=$toolchain/$KERNEL_COMPILER ARCH=$ARCHITECTURE
+ 	#fi
+ 
+-	if [[ $LINUXFAMILY =~ sun60iw2 ]]; then
++	if [[ $LINUXFAMILY =~ sun60iw2 && -d bsp/modules/gpu ]]; then
+ 		make -C bsp/modules/gpu LICHEE_TOOLCHAIN_PATH=$toolchain LICHEE_CROSS_COMPILER=$KERNEL_COMPILER LICHEE_PLATFORM=linux LICHEE_MOD_DIR=${SRC}/.tmp/gpu_modules_${LINUXFAMILY} LICHEE_KERN_DIR=${kerneldir} CROSS_COMPILE=$toolchain/$KERNEL_COMPILER ARCH=$ARCHITECTURE
+ 		make -C bsp/modules/gpu modules_install LICHEE_TOOLCHAIN_PATH=$toolchain LICHEE_CROSS_COMPILER=$KERNEL_COMPILER LICHEE_PLATFORM=linux LICHEE_MOD_DIR=${SRC}/.tmp/gpu_modules_${LINUXFAMILY} LICHEE_KERN_DIR=${kerneldir} CROSS_COMPILE=$toolchain/$KERNEL_COMPILER ARCH=$ARCHITECTURE
+ 	fi
+@@ -544,6 +545,7 @@ CUSTOM_KERNEL_CONFIG
+ 		ARCH=$ARCHITECTURE \
+ 		DEBFULLNAME="$MAINTAINER" \
+ 		DEBEMAIL="$MAINTAINERMAIL" \
++		DPKG_FLAGS="-d" \
+ 		CROSS_COMPILE="$CCACHE $KERNEL_COMPILER" 2>>$DEST/${LOG_SUBPATH}/compilation.log' \
+ 		${PROGRESS_LOG_TO_FILE:+' | tee -a $DEST/${LOG_SUBPATH}/compilation.log'} \
+ 		${OUTPUT_DIALOG:+' | dialog --backtitle "$backtitle" --progressbox "Creating kernel packages..." $TTY_Y $TTY_X'} \
