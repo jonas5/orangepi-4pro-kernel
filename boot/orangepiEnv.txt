@@ -1,12 +1,8 @@
-verbosity=1
-console=both
-fdtfile=sun60i-a733-orangepi-4-pro.dtb
-kernel_addr_r=0x40080000
-ramdisk_addr_r=0x44000000
-fdt_addr_r=0x4FA00000
-loadaddr=0x45000000
+verbosity=8
+bootlogo=false
+console=serial
 overlay_prefix=sun60i-a733
-rootdev=PARTUUID=auto
+fdtfile=allwinner/sun60i-a733-orangepi-4-pro.dtb
+rootdev=/dev/mmcblk0p1
 rootfstype=ext4
-cma=512M
-extraargs=pcie_aspm=powersave nmi_watchdog=0
+extraargs=console=tty1 console=ttyS0,115200 earlycon=uart8250,mmio32,0x02500000 loglevel=8 apparmor=0 selinux=0 panic=5 cma=256M modprobe.blacklist=powervr,aic8800_fdrv,aic8800_bsp,aic_load_fw,aic8800_btlpm

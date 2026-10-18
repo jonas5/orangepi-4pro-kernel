@@ -1,0 +1,113 @@
+name: Build Orange Pi 4 Pro Debian Bookworm Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Debian release'
+        required: true
+        default: 'bookworm'
+        type: choice
+        options:
+          - bookworm
+          - trixie
+      build_type:
+        description: 'Build Type'
+        required: true
+        default: 'minimal'
+        type: choice
+        options:
+          - minimal
+          - server
+          - desktop
+  push:
+    branches:
+      - main
+      - 6.18-working-baseline
+    paths:
+      - 'patch/**'
+      - 'config/**'
+      - 'boot/**'
+      - '.github/workflows/build-image.yml'
+
+jobs:
+  build-image:
+    name: Build Bootable SD Card Image
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Free disk space on runner
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force 2>/dev/null || true
+          df -h
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git make gcc g++ bison flex bc libssl-dev libncurses-dev libelf-dev \
+            debootstrap qemu-user-static binfmt-support u-boot-tools rsync cpio \
+            kmod parted dosfstools fdisk xz-utils curl wget zstd pigz python3 \
+            device-tree-compiler dialog lzop libyaml-dev pkg-config
+
+      - name: Clone build harness
+        run: |
+          git clone --depth 1 https://github.com/orangepi-xunlong/orangepi-build.git orangepi-build
+
+      - name: Apply Orange Pi 4 Pro A733 patches and configuration
+        run: |
+          # Copy unified patch to orangepi-build
+          mkdir -p orangepi-build/external/patch/kernel/sun60iw2-next
+          cp patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch orangepi-build/external/patch/kernel/sun60iw2-next/
+
+          # Copy modular defconfig
+          mkdir -p orangepi-build/external/config/kernel
+          cp config/orangepi_4pro_defconfig orangepi-build/external/config/kernel/linux-sun60iw2-next-a733.config
+
+          # Update board config to not auto-bundle proprietary drivers into base image
+          sed -i 's/MODULES_NEXT=.*/MODULES_NEXT=""/' orangepi-build/external/config/boards/orangepi4pro.conf
+
+      - name: Build SD Image via orangepi-build
+        run: |
+          BUILD_DESKTOP="no"
+          BUILD_MINIMAL="yes"
+          if [ "${{ github.event.inputs.build_type }}" = "desktop" ]; then
+            BUILD_DESKTOP="yes"
+            BUILD_MINIMAL="no"
+          fi
+
+          cd orangepi-build
+          sudo ./build.sh \
+            BOARD=orangepi4pro \
+            BRANCH=next \
+            BUILD_OPT=image \
+            RELEASE=${{ github.event.inputs.release || 'bookworm' }} \
+            BUILD_MINIMAL=${BUILD_MINIMAL} \
+            BUILD_DESKTOP=${BUILD_DESKTOP}
+
+      - name: Package artifacts
+        run: |
+          mkdir -p release_artifacts
+          cd orangepi-build/output/images/
+          for img in *.img; do
+            if [ -f "$img" ]; then
+              echo "Compressing $img..."
+              xz -T0 -9 -k "$img"
+              sha256sum "$img.xz" > "$img.xz.sha256"
+              cp -v "$img.xz"* ../../../release_artifacts/
+            fi
+          done
+          ls -la ../../../release_artifacts/
+
+      - name: Upload Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: orangepi4pro-bookworm-image
+          path: release_artifacts/*
+          if-no-files-found: error

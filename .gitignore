@@ -1,15 +1,34 @@
-# Build output
-*.o
-*.o.cmd
+# Compiled binaries and images
 *.ko
-*.ko.cmd
-*.a
-*.a.cmd
-*.so
-*.so.cmd
+*.o
+*.cmd
+*.mod
+*.mod.c
+*.img
+*.img.xz
+*.tar.gz
+*.tar.xz
+*.bin
+*.fw
+*.orig
+*.rej
+*~
+.DS_Store
 
-# Compiled boot script (binary)
-boot/boot.scr
+# Build directories & toolchains
+build/
+output/
+orangepi-build/
+linux-6.18.y/
+modules/
+release_artifacts/
 
-# Kernel build directory
-linux-7.1.5/
+# Private hardware-bound driver packages and scripts
+bsp/
+private/
+private-driver-pack/
+private-driver-pack.tar.gz
+aic-bt-attach
+powervr-start.sh
+aic8800-start.sh
+vk_layer_pvr_strip.c

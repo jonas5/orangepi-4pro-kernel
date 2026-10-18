@@ -1,0 +1,75 @@
+name: Build Mainline 6.18 Kernel for Orange Pi 4 Pro
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 6.18-working-baseline
+    paths:
+      - 'patch/**'
+      - 'config/**'
+      - '.github/workflows/build-kernel.yml'
+
+jobs:
+  build-kernel:
+    name: Cross-compile Kernel 6.18.y
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install cross-toolchain & build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git make gcc g++ gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+            bison flex bc libssl-dev libncurses-dev libelf-dev u-boot-tools \
+            rsync cpio kmod xz-utils curl wget zstd pigz python3 device-tree-compiler
+
+      - name: Fetch Linux 6.18.y tree
+        run: |
+          git clone --depth 1 --branch linux-6.18.y https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git linux-6.18.y
+
+      - name: Apply Orange Pi 4 Pro A733 baseline patch
+        run: |
+          cd linux-6.18.y
+          git apply --verbose ../patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch
+
+      - name: Configure kernel
+        run: |
+          cd linux-6.18.y
+          cp ../config/orangepi_4pro_defconfig .config
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- olddefconfig
+
+      - name: Compile Kernel & DTBs
+        run: |
+          cd linux-6.18.y
+          make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image dtbs modules
+
+      - name: Package artifacts
+        run: |
+          mkdir -p output/boot/dtb/allwinner output/modules
+          cd linux-6.18.y
+          cp arch/arm64/boot/Image ../output/boot/
+          mkimage -A arm64 -O linux -T kernel -C none -a 0x40080000 -e 0x40080000 -n "Linux 6.18.56" -d arch/arm64/boot/Image ../output/boot/uImage
+          cp arch/arm64/boot/dts/allwinner/sun60i-a733-orangepi-4-pro.dtb ../output/boot/dtb/allwinner/
+          cp arch/arm64/boot/dts/allwinner/sun60i-a733-orangepi-4-pro.dtb ../output/boot/
+          
+          # Install modules into package directory
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- INSTALL_MOD_PATH=../output/modules modules_install
+          
+          cd ../output
+          KVER=$(ls modules/lib/modules/)
+          tar -czf modules_${KVER}.tar.gz -C modules/ .
+          sha256sum boot/Image boot/uImage boot/sun60i-a733-orangepi-4-pro.dtb modules_${KVER}.tar.gz > SHA256SUMS
+          ls -la boot/ modules_${KVER}.tar.gz SHA256SUMS
+
+      - name: Upload Kernel Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: orangepi4pro-kernel-6.18
+          path: |
+            output/boot/*
+            output/modules_*.tar.gz
+            output/SHA256SUMS
