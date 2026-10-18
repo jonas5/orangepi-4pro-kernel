@@ -27,6 +27,10 @@ on:
         description: 'Custom release tag (leave empty for daily / tag trigger)'
         required: false
         default: ''
+      reuse_run_id:
+        description: 'Optional: Existing run ID to release (skips 20-min rebuild)'
+        required: false
+        default: ''
       publish_release:
         description: 'Publish or update GitHub release'
         required: true
@@ -58,6 +62,7 @@ jobs:
           fetch-depth: 0
 
       - name: Free disk space on runner
+        if: github.event.inputs.reuse_run_id == ''
         run: |
           sudo rm -rf /usr/share/dotnet
           sudo rm -rf /usr/local/lib/android
@@ -67,6 +72,7 @@ jobs:
           df -h
 
       - name: Install build dependencies
+        if: github.event.inputs.reuse_run_id == ''
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -77,10 +83,12 @@ jobs:
             device-tree-compiler dialog lzop libyaml-dev pkg-config
 
       - name: Clone build harness
+        if: github.event.inputs.reuse_run_id == ''
         run: |
           git clone --depth 1 https://github.com/orangepi-xunlong/orangepi-build.git orangepi-build
 
       - name: Apply Orange Pi 4 Pro A733 patches and configuration
+        if: github.event.inputs.reuse_run_id == ''
         run: |
           # Apply orangepi-build harness patch (enables 6.18 next branch & u-boot packing)
           git -C orangepi-build apply ../patch/orangepi-build.patch
@@ -95,6 +103,7 @@ jobs:
           cp config/orangepi_4pro_defconfig orangepi-build/external/config/kernel/linux-sun60iw2-next-a733.config
 
       - name: Build SD Image via orangepi-build
+        if: github.event.inputs.reuse_run_id == ''
         run: |
           BUILD_DESKTOP="no"
           BUILD_MINIMAL="yes"
@@ -113,6 +122,7 @@ jobs:
             BUILD_DESKTOP=${BUILD_DESKTOP}
 
       - name: Package artifacts
+        if: github.event.inputs.reuse_run_id == ''
         run: |
           mkdir -p release_artifacts
           echo "Looking for built images in orangepi-build/output/..."
@@ -155,14 +165,29 @@ jobs:
           echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Upload Image Artifact to CI
+        if: github.event.inputs.reuse_run_id == ''
         uses: actions/upload-artifact@v4
         with:
           name: orangepi4pro-bookworm-image
           path: release_artifacts/*
           if-no-files-found: error
 
+      - name: Download existing artifacts (Reuse Run)
+        if: github.event.inputs.reuse_run_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p release_artifacts
+          echo "Downloading artifacts from run ID: ${{ github.event.inputs.reuse_run_id }}"
+          gh run download "${{ github.event.inputs.reuse_run_id }}" --dir release_artifacts/
+          # Flatten any nested subdirectories created by gh run download
+          find release_artifacts/ -mindepth 2 -type f -exec mv -t release_artifacts/ {} +
+          find release_artifacts/ -mindepth 1 -type d -exec rm -rf {} +
+          echo "Assets ready for release:"
+          ls -lh release_artifacts/
+
       - name: Publish GitHub Release
-        if: ${{ github.event.inputs.publish_release != false }}
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.publish_release != false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
