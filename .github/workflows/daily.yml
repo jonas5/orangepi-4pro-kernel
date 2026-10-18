@@ -1,0 +1,233 @@
+name: Daily Build & Release
+
+on:
+  schedule:
+    # Run daily at 02:00 UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Debian release'
+        required: true
+        default: 'bookworm'
+        type: choice
+        options:
+          - bookworm
+          - trixie
+      build_type:
+        description: 'Build Type'
+        required: true
+        default: 'minimal'
+        type: choice
+        options:
+          - minimal
+          - server
+          - desktop
+      tag_name:
+        description: 'Custom release tag (leave empty for daily / tag trigger)'
+        required: false
+        default: ''
+      publish_release:
+        description: 'Publish or update GitHub release'
+        required: true
+        default: true
+        type: boolean
+  push:
+    branches:
+      - main
+      - 6.18-working-baseline
+    tags:
+      - 'v*'
+    paths:
+      - 'patch/**'
+      - 'config/**'
+      - 'boot/**'
+      - '.github/workflows/daily.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Release Orange Pi 4 Pro Debian Image
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Free disk space on runner
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force 2>/dev/null || true
+          df -h
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            git make gcc g++ gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+            bison flex bc libssl-dev libncurses-dev libelf-dev \
+            debootstrap qemu-user-static binfmt-support u-boot-tools rsync cpio \
+            kmod parted dosfstools fdisk xz-utils curl wget zstd pigz python3 \
+            device-tree-compiler dialog lzop libyaml-dev pkg-config
+
+      - name: Clone build harness
+        run: |
+          git clone --depth 1 https://github.com/orangepi-xunlong/orangepi-build.git orangepi-build
+
+      - name: Apply Orange Pi 4 Pro A733 patches and configuration
+        run: |
+          # Apply orangepi-build harness patch (enables 6.18 next branch & u-boot packing)
+          git -C orangepi-build apply ../patch/orangepi-build.patch
+
+          # Copy unified mainline kernel patch & builddeb packaging patch
+          mkdir -p orangepi-build/external/patch/kernel/sun60iw2-next
+          cp patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch orangepi-build/external/patch/kernel/sun60iw2-next/
+          cp patch/0300-packaging-armbian-builddeb.patch orangepi-build/external/patch/kernel/sun60iw2-next/
+
+          # Copy modular defconfig
+          mkdir -p orangepi-build/external/config/kernel
+          cp config/orangepi_4pro_defconfig orangepi-build/external/config/kernel/linux-sun60iw2-next-a733.config
+
+      - name: Build SD Image via orangepi-build
+        run: |
+          BUILD_DESKTOP="no"
+          BUILD_MINIMAL="yes"
+          if [ "${{ github.event.inputs.build_type }}" = "desktop" ]; then
+            BUILD_DESKTOP="yes"
+            BUILD_MINIMAL="no"
+          fi
+
+          cd orangepi-build
+          sudo ./build.sh \
+            BOARD=orangepi4pro \
+            BRANCH=next \
+            BUILD_OPT=image \
+            RELEASE=${{ github.event.inputs.release || 'bookworm' }} \
+            BUILD_MINIMAL=${BUILD_MINIMAL} \
+            BUILD_DESKTOP=${BUILD_DESKTOP}
+
+      - name: Package artifacts
+        run: |
+          mkdir -p release_artifacts
+          echo "Looking for built images in orangepi-build/output/..."
+
+          # 1. Compress and collect bootable disk image (.img)
+          find orangepi-build/output/ -type f \( -name "*.img" -o -name "*.img.xz" \) | while read -r img; do
+            echo "Processing image: $img"
+            base=$(basename "$img")
+            if [[ "$img" == *.xz ]]; then
+              cp -v "$img" release_artifacts/
+              (cd release_artifacts && sha256sum "$base" > "${base}.sha256")
+            elif [[ "$img" == *.img ]]; then
+              echo "Compressing $base with xz..."
+              xz -T0 -9 -c "$img" > "release_artifacts/${base}.xz"
+              (cd release_artifacts && sha256sum "${base}.xz" > "${base}.xz.sha256")
+            fi
+          done
+
+          # 2. Collect generated kernel deb packages
+          if [ -d "orangepi-build/output/debs" ]; then
+            echo "Collecting kernel deb packages..."
+            find orangepi-build/output/debs/ -type f -name "*.deb" -exec cp -v {} release_artifacts/ \;
+          fi
+
+          # 3. Generate master SHA256SUMS manifest
+          (cd release_artifacts && sha256sum * > SHA256SUMS 2>/dev/null || true)
+
+          echo "=== Release Artifacts Packaged ==="
+          ls -lh release_artifacts/
+
+          if [ -z "$(ls -A release_artifacts/ 2>/dev/null)" ]; then
+            echo "ERROR: No release artifacts found!"
+            find orangepi-build/output/ -maxdepth 4 -ls || true
+            exit 1
+          fi
+
+          echo "### Packaged Release Assets" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -lh release_artifacts/ >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Image Artifact to CI
+        uses: actions/upload-artifact@v4
+        with:
+          name: orangepi4pro-bookworm-image
+          path: release_artifacts/*
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: ${{ github.event.inputs.publish_release != false }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DATE_TAG=$(date -u +'%Y%m%d')
+          DATE_STR=$(date -u +'%Y-%m-%d')
+
+          # Determine target tag and title
+          if [ -n "${{ github.event.inputs.tag_name }}" ]; then
+            TAG="${{ github.event.inputs.tag_name }}"
+            TITLE="Orange Pi 4 Pro Debian Bookworm (${TAG})"
+            PRERELEASE_FLAG=""
+          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+            TITLE="Orange Pi 4 Pro Debian Bookworm (${TAG})"
+            PRERELEASE_FLAG=""
+          else
+            # Daily build rolling release
+            TAG="daily"
+            TITLE="Orange Pi 4 Pro Debian Bookworm (Daily Build - ${DATE_STR})"
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          cat << EOF > release_notes.md
+          ## Orange Pi 4 Pro (Allwinner A733 / sun60iw2)
+
+          **Release**: ${TITLE}
+          **Target SoC**: Allwinner A733 (\`sun60iw2\`)
+          **Kernel**: Mainline Linux 6.18.y (\`linux-6.18.y\`)
+          **Distribution**: Debian 12 Bookworm (minimal)
+          **Build Date**: ${DATE_STR}
+
+          ### Features
+          - Modularized peripheral drivers (network, GPU, Wi-Fi, BT) as on-demand modules (\`=m\`)
+          - Out-of-tree drivers excluded from kernel image; proprietary drivers decoupled into standalone packages
+          - \`cma=256M\` allocation and suspend/sleep targets permanently disabled for headless 24/7 stability
+          - Unified mainline device tree aliases with root disk locked to \`/dev/mmcblk0p1\`
+          - Pre-packaged Debian kernel debs (\`linux-image\`, \`linux-headers\`, \`linux-dtb\`)
+
+          ### Verification
+          Checksums are provided in \`SHA256SUMS\` and matching \`.sha256\` files for each asset.
+          EOF
+          sed -i 's/^[[:space:]]*//' release_notes.md
+
+          echo "Publishing release: tag=$TAG, title='$TITLE'..."
+          set +e
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists, updating release notes and uploading assets..."
+            gh release edit "$TAG" --title "$TITLE" --notes-file release_notes.md $PRERELEASE_FLAG
+            gh release upload "$TAG" release_artifacts/* --clobber 2>&1 | tee /tmp/release_upload.log
+            RC=${PIPESTATUS[0]}
+          else
+            echo "Creating new release $TAG..."
+            gh release create "$TAG" release_artifacts/* \
+              --title "$TITLE" \
+              --notes-file release_notes.md \
+              $PRERELEASE_FLAG 2>&1 | tee /tmp/release_upload.log
+            RC=${PIPESTATUS[0]}
+          fi
+
+          if [ $RC -ne 0 ]; then
+            echo "### Release Publishing Encountered an Issue" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat /tmp/release_upload.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit $RC
+          else
+            echo "### Successfully Published Release: [$TAG](https://github.com/${{ github.repository }}/releases/tag/${TAG})" >> $GITHUB_STEP_SUMMARY
+          fi
