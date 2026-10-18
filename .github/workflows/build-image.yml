@@ -95,16 +95,26 @@ jobs:
       - name: Package artifacts
         run: |
           mkdir -p release_artifacts
-          cd orangepi-build/output/images/
-          for img in *.img; do
-            if [ -f "$img" ]; then
-              echo "Compressing $img..."
-              xz -T0 -9 -k "$img"
-              sha256sum "$img.xz" > "$img.xz.sha256"
-              cp -v "$img.xz"* ../../../release_artifacts/
+          echo "Looking for built images in orangepi-build/output/..."
+          find orangepi-build/output/ -type f \( -name "*.img" -o -name "*.img.xz" \) | while read -r img; do
+            echo "Found image: $img"
+            base=$(basename "$img")
+            if [[ "$img" == *.xz ]]; then
+              cp -v "$img" release_artifacts/
+              (cd release_artifacts && sha256sum "$base" > "${base}.sha256")
+            elif [[ "$img" == *.img ]]; then
+              echo "Compressing $base with xz..."
+              xz -T0 -9 -c "$img" > "release_artifacts/${base}.xz"
+              (cd release_artifacts && sha256sum "${base}.xz" > "${base}.xz.sha256")
             fi
           done
-          ls -la ../../../release_artifacts/
+          echo "Artifacts packaged in release_artifacts:"
+          ls -lh release_artifacts/
+          if [ -z "$(ls -A release_artifacts/ 2>/dev/null)" ]; then
+            echo "ERROR: No images found in orangepi-build/output/"
+            find orangepi-build/output/ -maxdepth 4 -ls || true
+            exit 1
+          fi
 
       - name: Upload Image Artifact
         uses: actions/upload-artifact@v4
