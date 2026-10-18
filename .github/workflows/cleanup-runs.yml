@@ -1,0 +1,57 @@
+name: Cleanup Old Workflow Runs
+
+on:
+  workflow_dispatch:
+    inputs:
+      older_than_today:
+        description: 'Delete runs created before today'
+        required: true
+        default: 'true'
+  push:
+    paths:
+      - '.github/workflows/cleanup-runs.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  delete-old-runs:
+    name: Delete Runs Older Than Today
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete runs created before today
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TODAY=$(date -u +%Y-%m-%d)
+          echo "Current UTC Date: $TODAY"
+          echo "Target repository: $GH_REPO"
+          
+          PAGE=1
+          DELETED_COUNT=0
+          
+          while true; do
+            echo "Querying runs on page $PAGE..."
+            RUN_DATA=$(gh api "repos/${GH_REPO}/actions/runs?per_page=100&page=1" --jq '.workflow_runs[] | select(.created_at < "'"$TODAY"'") | "\(.id) \(.name) \(.created_at)"' 2>/dev/null || true)
+            
+            if [ -z "$RUN_DATA" ]; then
+              echo "No more workflow runs older than $TODAY found."
+              break
+            fi
+            
+            while IFS= read -r line; do
+              [ -n "$line" ] || continue
+              RUN_ID=$(echo "$line" | awk '{print $1}')
+              RUN_INFO=$(echo "$line" | cut -d' ' -f2-)
+              echo "Deleting run $RUN_ID ($RUN_INFO)..."
+              gh api -X DELETE "repos/${GH_REPO}/actions/runs/${RUN_ID}" --silent 2>/dev/null || true
+              DELETED_COUNT=$((DELETED_COUNT + 1))
+            done <<< "$RUN_DATA"
+            
+            # Brief pause to respect API secondary limits
+            sleep 1
+          done
+          
+          echo "Successfully deleted $DELETED_COUNT old workflow runs!"
