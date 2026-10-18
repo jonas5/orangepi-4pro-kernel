@@ -17,7 +17,7 @@ This repository provides the working mainline Linux **6.18.y** kernel baseline, 
 | **Bluetooth** | AIC8800D80 UART1 (`serial@2501000`) | **Working** | Native H4 1.5MBaud hardware flow control daemon (`hci0`) |
 | **Power Mgmt** | Desktop / GDM3 / Systemd | **Working** | Sleep & suspend targets permanently masked for 24/7 SBC server operation |
 
-> **Note:** The core kernel and base Debian 12 images are 100% open source. Hardware acceleration modules (PowerVR Rogue GPU Vulkan 1.2 stack and AIC8800 Wi-Fi 6 / Bluetooth 5.4) are maintained out-of-tree; driver licenses can be grabbed via [Buy Me a Coffee](https://buymeacoffee.com/jonas5/e/588598).
+> **Note:** The core kernel and base Debian 12 images are 100% open source. Hardware acceleration modules (PowerVR Rogue GPU Vulkan 1.2 stack and AIC8800 Wi-Fi 6 / Bluetooth 5.4) are maintained out-of-tree; driver licenses can be grabbed via [<img src="https://cdn.buymeacoffee.com/buttons/bmc-new-btn-logo.svg" alt="Buy Me a Coffee" width="20" height="20" align="center">](https://buymeacoffee.com/jonas5/e/588598).
 
 ---
 
