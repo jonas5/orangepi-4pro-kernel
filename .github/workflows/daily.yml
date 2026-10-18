@@ -39,7 +39,6 @@ on:
   push:
     branches:
       - main
-      - 6.18-working-baseline
     tags:
       - 'v*'
     paths:
