@@ -104,12 +104,15 @@ jobs:
             BUILD_MINIMAL="no"
           fi
 
+          RELEASE="${{ github.event.inputs.release }}"
+          [ -z "$RELEASE" ] && RELEASE="trixie"
+
           cd orangepi-build
           sudo ./build.sh \
             BOARD=orangepi4pro \
             BRANCH=next \
             BUILD_OPT=image \
-            RELEASE=${{ github.event.inputs.release || 'trixie' }} \
+            RELEASE=${RELEASE} \
             BUILD_MINIMAL=${BUILD_MINIMAL} \
             BUILD_DESKTOP=${BUILD_DESKTOP}
 
