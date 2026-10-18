@@ -1,51 +1,6 @@
 # Orange Pi 4 Pro (Allwinner A733) — Mainline Linux 6.18 Baseline
 
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Get%20Driver%20License%20(€35.59)-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/jonas5/e/588598)
-[![Driver License Portal](https://img.shields.io/badge/Driver%20Portal-raccoon.ing-0284c7?style=for-the-badge)](https://raccoon.ing)
-[![Kernel Version](https://img.shields.io/badge/Kernel-6.18.y%20Mainline-success?style=for-the-badge)](https://kernel.org)
-[![Debian](https://img.shields.io/badge/OS-Debian%2012%20Bookworm-D70A53?style=for-the-badge&logo=debian&logoColor=white)](https://debian.org)
-
 This repository provides the working mainline Linux **6.18.y** kernel baseline, device trees, patches, and automated GitHub Actions workflows for the **Orange Pi 4 Pro (Allwinner A733 / `sun60iw2`)**.
-
----
-
-## 🛒 Private Driver Pack & Hardware Licensing
-
-The core Linux kernel (`linux-6.18.y`), device trees, and base bootable Debian 12 Bookworm SD card images in this repository are **100% open-source and clean**.
-
-To obtain the licensed, out-of-tree hardware acceleration driver subsystems (**PowerVR Rogue BXM-4-64 GPU Mesa Vulkan 1.2 stack** and **AIC8800D80 FullMAC Wi-Fi 6 & Bluetooth 5.4 drivers**), hardware licenses are available on Buy Me a Coffee:
-
-- **Purchase Driver Pack License**: [https://buymeacoffee.com/jonas5/e/588598](https://buymeacoffee.com/jonas5/e/588598) (€35.59)
-- **Official Driver & License Portal**: [https://raccoon.ing](https://raccoon.ing)
-- **Instant Activation & Receipt Lookup**: [https://raccoon.ing/success](https://raccoon.ing/success)
-
-### How to Activate Your Drivers Once Purchased:
-
-#### 1. Interactive TUI (Classic `raspi-config` Style):
-Launch the configuration tool pre-installed on the system:
-```bash
-sudo orangepi-config
-# or via alias:
-sudo driver-config
-```
-Select **Option 1** (AIC8800 Wi-Fi 6 / BT 5.4), **Option 2** (PowerVR Rogue GPU Vulkan 1.2), or **Option 3** (All Modules).
-
-#### 2. Non-Interactive 1-Click Terminal Activation:
-```bash
-sudo orangepi-config --activate all --payment-id <YOUR-LICENSE-KEY> --non-interactive
-```
-
-#### 3. Offline USB Sneakernet Installation (No Wi-Fi / No Network):
-If your freshly imaged board does not have an active network connection, prepare an offline USB bundle on any machine with internet access:
-```bash
-orangepi-config --activate all --payment-id <YOUR-LICENSE-KEY> --download-only --output-dir /media/usb
-```
-Then plug the USB drive into your Orange Pi 4 Pro and run:
-```bash
-cd /media/usb
-sudo bash install-offline.sh
-sudo reboot
-```
 
 ---
 
@@ -61,6 +16,8 @@ sudo reboot
 | **Wi-Fi** | AIC8800D80 SDIO 4-bit (`mmc@4021000`) | **Working** | Separate module on demand (`wlan0`, 802.11ax Wi-Fi 6) |
 | **Bluetooth** | AIC8800D80 UART1 (`serial@2501000`) | **Working** | Native H4 1.5MBaud hardware flow control daemon (`hci0`) |
 | **Power Mgmt** | Desktop / GDM3 / Systemd | **Working** | Sleep & suspend targets permanently masked for 24/7 SBC server operation |
+
+> **Note:** The core kernel and base Debian 12 images are 100% open source. Hardware acceleration modules (PowerVR Rogue GPU Vulkan 1.2 stack and AIC8800 Wi-Fi 6 / Bluetooth 5.4) are maintained out-of-tree; driver licenses can be grabbed via [Buy Me a Coffee](https://buymeacoffee.com/jonas5/e/588598).
 
 ---
 
