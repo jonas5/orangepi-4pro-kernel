@@ -1,6 +1,6 @@
 diff -Nru a/arch/arm64/boot/dts/allwinner/Makefile b/arch/arm64/boot/dts/allwinner/Makefile
---- a/arch/arm64/boot/dts/allwinner/Makefile	2026-10-18 15:17:10.180395064 +0200
-+++ b/arch/arm64/boot/dts/allwinner/Makefile	2026-10-18 15:17:10.190394989 +0200
+--- a/arch/arm64/boot/dts/allwinner/Makefile	2026-10-18 15:20:57.311699066 +0200
++++ b/arch/arm64/boot/dts/allwinner/Makefile	2026-10-18 15:20:57.333698901 +0200
 @@ -59,3 +59,4 @@
  dtb-$(CONFIG_ARCH_SUNXI) += sun55i-h728-x96qpro+.dtb
  dtb-$(CONFIG_ARCH_SUNXI) += sun55i-t527-avaota-a1.dtb
@@ -8,7 +8,7 @@ diff -Nru a/arch/arm64/boot/dts/allwinner/Makefile b/arch/arm64/boot/dts/allwinn
 +dtb-$(CONFIG_ARCH_SUNXI) += sun60i-a733-orangepi-4-pro.dtb
 diff -Nru a/arch/arm64/boot/dts/allwinner/sun60i-a733-orangepi-4-pro.dts b/arch/arm64/boot/dts/allwinner/sun60i-a733-orangepi-4-pro.dts
 --- a/arch/arm64/boot/dts/allwinner/sun60i-a733-orangepi-4-pro.dts	1970-01-01 01:00:00.000000000 +0100
-+++ b/arch/arm64/boot/dts/allwinner/sun60i-a733-orangepi-4-pro.dts	2026-10-18 15:17:10.190394989 +0200
++++ b/arch/arm64/boot/dts/allwinner/sun60i-a733-orangepi-4-pro.dts	2026-10-18 15:20:57.333698901 +0200
 @@ -0,0 +1,3854 @@
 +// SPDX-License-Identifier: (GPL-2.0+ or MIT)
 +
@@ -3866,7 +3866,7 @@ diff -Nru a/arch/arm64/boot/dts/allwinner/sun60i-a733-orangepi-4-pro.dts b/arch/
 +};
 diff -Nru a/arch/arm64/boot/dts/allwinner/sun60iw2p1-cpu-vf.dtsi b/arch/arm64/boot/dts/allwinner/sun60iw2p1-cpu-vf.dtsi
 --- a/arch/arm64/boot/dts/allwinner/sun60iw2p1-cpu-vf.dtsi	1970-01-01 01:00:00.000000000 +0100
-+++ b/arch/arm64/boot/dts/allwinner/sun60iw2p1-cpu-vf.dtsi	2026-10-18 15:17:10.193394967 +0200
++++ b/arch/arm64/boot/dts/allwinner/sun60iw2p1-cpu-vf.dtsi	2026-10-18 15:20:57.334698894 +0200
 @@ -0,0 +1,2176 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/{
@@ -6046,7 +6046,7 @@ diff -Nru a/arch/arm64/boot/dts/allwinner/sun60iw2p1-cpu-vf.dtsi b/arch/arm64/bo
 +};
 diff -Nru a/arch/arm64/boot/dts/allwinner/sun60iw2p1.dtsi b/arch/arm64/boot/dts/allwinner/sun60iw2p1.dtsi
 --- a/arch/arm64/boot/dts/allwinner/sun60iw2p1.dtsi	1970-01-01 01:00:00.000000000 +0100
-+++ b/arch/arm64/boot/dts/allwinner/sun60iw2p1.dtsi	2026-10-18 15:17:10.191394982 +0200
++++ b/arch/arm64/boot/dts/allwinner/sun60iw2p1.dtsi	2026-10-18 15:20:57.333698901 +0200
 @@ -0,0 +1,5074 @@
 +// SPDX-License-Identifier: (GPL-2.0+ or MIT)
 +#include <dt-bindings/clock/sun60iw2-ccu.h>
@@ -11123,8 +11123,8 @@ diff -Nru a/arch/arm64/boot/dts/allwinner/sun60iw2p1.dtsi b/arch/arm64/boot/dts/
 +	};
 +};
 diff -Nru a/drivers/mmc/host/Kconfig b/drivers/mmc/host/Kconfig
---- a/drivers/mmc/host/Kconfig	2026-10-18 15:17:10.175395101 +0200
-+++ b/drivers/mmc/host/Kconfig	2026-10-18 15:17:10.189394997 +0200
+--- a/drivers/mmc/host/Kconfig	2026-10-18 15:20:57.305699110 +0200
++++ b/drivers/mmc/host/Kconfig	2026-10-18 15:20:57.332698909 +0200
 @@ -982,7 +982,7 @@
  config MMC_SUNXI
  	tristate "Allwinner sunxi SD/MMC Host Controller support"
@@ -11135,8 +11135,8 @@ diff -Nru a/drivers/mmc/host/Kconfig b/drivers/mmc/host/Kconfig
  	  This selects support for the SD/MMC Host Controller on
  	  Allwinner sunxi SoCs.
 diff -Nru a/drivers/mmc/host/sunxi-mmc.c b/drivers/mmc/host/sunxi-mmc.c
---- a/drivers/mmc/host/sunxi-mmc.c	2026-10-18 15:17:10.167395161 +0200
-+++ b/drivers/mmc/host/sunxi-mmc.c	2026-10-18 15:17:10.189394997 +0200
+--- a/drivers/mmc/host/sunxi-mmc.c	2026-10-18 15:20:57.299699155 +0200
++++ b/drivers/mmc/host/sunxi-mmc.c	2026-10-18 15:20:57.321698991 +0200
 @@ -1310,6 +1310,14 @@
  	if (ret)
  		return ret;
@@ -11153,8 +11153,8 @@ diff -Nru a/drivers/mmc/host/sunxi-mmc.c b/drivers/mmc/host/sunxi-mmc.c
  	if (IS_ERR(host->reg_base))
  		return PTR_ERR(host->reg_base);
 diff -Nru a/drivers/net/phy/motorcomm.c b/drivers/net/phy/motorcomm.c
---- a/drivers/net/phy/motorcomm.c	2026-10-18 15:17:10.162395198 +0200
-+++ b/drivers/net/phy/motorcomm.c	2026-10-18 15:17:10.188395004 +0200
+--- a/drivers/net/phy/motorcomm.c	2026-10-18 15:20:57.290699222 +0200
++++ b/drivers/net/phy/motorcomm.c	2026-10-18 15:20:57.320698998 +0200
 @@ -1195,6 +1195,8 @@
  		return -EINVAL;
  	}
@@ -11192,8 +11192,8 @@ diff -Nru a/drivers/net/phy/motorcomm.c b/drivers/net/phy/motorcomm.c
  	if (device_property_read_bool(dev, "motorcomm,keep-pll-enabled")) {
  		/* enable RXC clock when no wire plug */
 diff -Nru a/drivers/pmdomain/sunxi/sun55i-pck600.c b/drivers/pmdomain/sunxi/sun55i-pck600.c
---- a/drivers/pmdomain/sunxi/sun55i-pck600.c	2026-10-18 15:17:10.153395265 +0200
-+++ b/drivers/pmdomain/sunxi/sun55i-pck600.c	2026-10-18 15:17:10.188395004 +0200
+--- a/drivers/pmdomain/sunxi/sun55i-pck600.c	2026-10-18 15:20:57.283699275 +0200
++++ b/drivers/pmdomain/sunxi/sun55i-pck600.c	2026-10-18 15:20:57.319699006 +0200
 @@ -52,6 +52,7 @@
  	u32 logic_power_switch0_delay;
  	u32 logic_power_switch1_delay;
@@ -11260,7 +11260,7 @@ diff -Nru a/drivers/pmdomain/sunxi/sun55i-pck600.c b/drivers/pmdomain/sunxi/sun5
  MODULE_DEVICE_TABLE(of, sunxi_pck600_of_match);
 diff -Nru a/include/dt-bindings/clock/sun60iw2-ccu.h b/include/dt-bindings/clock/sun60iw2-ccu.h
 --- a/include/dt-bindings/clock/sun60iw2-ccu.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/include/dt-bindings/clock/sun60iw2-ccu.h	2026-10-18 15:17:10.255394504 +0200
++++ b/include/dt-bindings/clock/sun60iw2-ccu.h	2026-10-18 15:20:57.341698841 +0200
 @@ -0,0 +1,336 @@
 +// SPDX-License-Identifier: (GPL-2.0+ or MIT)
 +/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
@@ -11600,7 +11600,7 @@ diff -Nru a/include/dt-bindings/clock/sun60iw2-ccu.h b/include/dt-bindings/clock
 +#endif /* _DT_BINDINGS_CLK_SUN60IW2_H_ */
 diff -Nru a/include/dt-bindings/clock/sun60iw2-cpupll-ccu.h b/include/dt-bindings/clock/sun60iw2-cpupll-ccu.h
 --- a/include/dt-bindings/clock/sun60iw2-cpupll-ccu.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/include/dt-bindings/clock/sun60iw2-cpupll-ccu.h	2026-10-18 15:17:10.257394489 +0200
++++ b/include/dt-bindings/clock/sun60iw2-cpupll-ccu.h	2026-10-18 15:20:57.342698834 +0200
 @@ -0,0 +1,18 @@
 +// SPDX-License-Identifier: (GPL-2.0+ or MIT)
 +/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
@@ -11622,7 +11622,7 @@ diff -Nru a/include/dt-bindings/clock/sun60iw2-cpupll-ccu.h b/include/dt-binding
 +#endif /* _DT_BINDINGS_CLK_SUN60IW2_CPUPLL_H_ */
 diff -Nru a/include/dt-bindings/clock/sun60iw2-r-ccu.h b/include/dt-bindings/clock/sun60iw2-r-ccu.h
 --- a/include/dt-bindings/clock/sun60iw2-r-ccu.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/include/dt-bindings/clock/sun60iw2-r-ccu.h	2026-10-18 15:17:10.256394497 +0200
++++ b/include/dt-bindings/clock/sun60iw2-r-ccu.h	2026-10-18 15:20:57.342698834 +0200
 @@ -0,0 +1,49 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
@@ -11675,7 +11675,7 @@ diff -Nru a/include/dt-bindings/clock/sun60iw2-r-ccu.h b/include/dt-bindings/clo
 +#endif /* _DT_BINDINGS_CLK_SUN60IW2_R_CCU_H_ */
 diff -Nru a/include/dt-bindings/clock/sun60iw2-rtc.h b/include/dt-bindings/clock/sun60iw2-rtc.h
 --- a/include/dt-bindings/clock/sun60iw2-rtc.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/include/dt-bindings/clock/sun60iw2-rtc.h	2026-10-18 15:17:10.256394497 +0200
++++ b/include/dt-bindings/clock/sun60iw2-rtc.h	2026-10-18 15:20:57.342698834 +0200
 @@ -0,0 +1,27 @@
 +// SPDX-License-Identifier: (GPL-2.0+ or MIT)
 +/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
@@ -11706,7 +11706,7 @@ diff -Nru a/include/dt-bindings/clock/sun60iw2-rtc.h b/include/dt-bindings/clock
 +#endif /* _DT_BINDINGS_CLK_SUN60IW2_RTC_H_ */
 diff -Nru a/include/dt-bindings/clock/sunxi-ccu.h b/include/dt-bindings/clock/sunxi-ccu.h
 --- a/include/dt-bindings/clock/sunxi-ccu.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/include/dt-bindings/clock/sunxi-ccu.h	2026-10-18 15:17:10.254394511 +0200
++++ b/include/dt-bindings/clock/sunxi-ccu.h	2026-10-18 15:20:57.340698849 +0200
 @@ -0,0 +1,41 @@
 +// SPDX-License-Identifier: (GPL-2.0+ or MIT)
 +/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
@@ -11751,7 +11751,7 @@ diff -Nru a/include/dt-bindings/clock/sunxi-ccu.h b/include/dt-bindings/clock/su
 +#endif
 diff -Nru a/include/dt-bindings/clock/sunxi-clk.h b/include/dt-bindings/clock/sunxi-clk.h
 --- a/include/dt-bindings/clock/sunxi-clk.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/include/dt-bindings/clock/sunxi-clk.h	2026-10-18 15:17:10.257394489 +0200
++++ b/include/dt-bindings/clock/sunxi-clk.h	2026-10-18 15:20:57.343698827 +0200
 @@ -0,0 +1,18 @@
 +// SPDX-License-Identifier: (GPL-2.0+ or MIT)
 +/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
@@ -11771,9 +11771,46 @@ diff -Nru a/include/dt-bindings/clock/sunxi-clk.h b/include/dt-bindings/clock/su
 +#define FREQ_33		3
 +
 +#endif
+diff -Nru a/include/dt-bindings/display/sunxi-lcd.h b/include/dt-bindings/display/sunxi-lcd.h
+--- a/include/dt-bindings/display/sunxi-lcd.h	1970-01-01 01:00:00.000000000 +0100
++++ b/include/dt-bindings/display/sunxi-lcd.h	2026-10-18 15:20:57.338698864 +0200
+@@ -0,0 +1,33 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
++#ifndef __SUNXI_LCD_H__
++#define  __SUNXI_LCD_H__
++
++/* displl */
++#define CLK_PLL_DISPLL		0
++#define CLK_DSI_LS		1
++#define CLK_DSI_HS		2
++#define CLK_LVDS_OR_RGB		3
++
++/* dsi */
++#define MIPI_DSI_MODE_VIDEO		1
++#define MIPI_DSI_MODE_VIDEO_BURST	(1<<1)
++#define MIPI_DSI_MODE_NO_EOT_PACKET	(1<<9)
++#define MIPI_DSI_CLOCK_NON_CONTINUOUS	(1<<10)
++#define MIPI_DSI_EN_3DFIFO		(1<<21)
++#define MIPI_DSI_SLAVE_MODE		(1<<22)
++#define MIPI_DSI_MODE_VRR               (1<<24)
++#define MIPI_DSI_SYNC_INCELL            (1<<25)
++#define MIPI_DSI_ASYNC_INCELL           (1<<26)
++
++/* lvds */
++#define MEDIA_BUS_FMT_RGB666_1X7X3_SPWG         0x1010
++#define MEDIA_BUS_FMT_RGB888_1X7X4_SPWG         0x1011
++#define MEDIA_BUS_FMT_RGB888_1X7X4_JEIDA        0x1012
++
++/* rgb */
++#define MEDIA_BUS_FMT_RGB565_1X16               0x1017
++#define MEDIA_BUS_FMT_RGB666_1X18               0x1009
++#define MEDIA_BUS_FMT_RGB888_1X24               0x100a
++
++#endif
 diff -Nru a/include/dt-bindings/gpio/sun4i-gpio.h b/include/dt-bindings/gpio/sun4i-gpio.h
 --- a/include/dt-bindings/gpio/sun4i-gpio.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/include/dt-bindings/gpio/sun4i-gpio.h	2026-10-18 15:17:10.249394549 +0200
++++ b/include/dt-bindings/gpio/sun4i-gpio.h	2026-10-18 15:20:57.339698856 +0200
 @@ -0,0 +1,28 @@
 +/* SPDX-License-Identifier: GPL-2.0-only */
 +/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
@@ -11805,7 +11842,7 @@ diff -Nru a/include/dt-bindings/gpio/sun4i-gpio.h b/include/dt-bindings/gpio/sun
 +#endif /* __DT_SUN4I_GPIO_H */
 diff -Nru a/include/dt-bindings/power/allwinner,sun60i-a733-pck-600.h b/include/dt-bindings/power/allwinner,sun60i-a733-pck-600.h
 --- a/include/dt-bindings/power/allwinner,sun60i-a733-pck-600.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/include/dt-bindings/power/allwinner,sun60i-a733-pck-600.h	2026-10-18 15:17:10.236394646 +0200
++++ b/include/dt-bindings/power/allwinner,sun60i-a733-pck-600.h	2026-10-18 15:20:57.337698871 +0200
 @@ -0,0 +1,18 @@
 +/* SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause) */
 +
@@ -11827,7 +11864,7 @@ diff -Nru a/include/dt-bindings/power/allwinner,sun60i-a733-pck-600.h b/include/
 +#endif /* _DT_BINDINGS_POWER_SUN60I_A733_PCK600_H_ */
 diff -Nru a/include/dt-bindings/reset/sun60iw2-ccu.h b/include/dt-bindings/reset/sun60iw2-ccu.h
 --- a/include/dt-bindings/reset/sun60iw2-ccu.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/include/dt-bindings/reset/sun60iw2-ccu.h	2026-10-18 15:17:10.218394780 +0200
++++ b/include/dt-bindings/reset/sun60iw2-ccu.h	2026-10-18 15:20:57.335698886 +0200
 @@ -0,0 +1,131 @@
 +// SPDX-License-Identifier: (GPL-2.0+ or MIT)
 +/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
@@ -11962,7 +11999,7 @@ diff -Nru a/include/dt-bindings/reset/sun60iw2-ccu.h b/include/dt-bindings/reset
 +#endif /* _DT_BINDINGS_RESET_SUN60IW2_H_ */
 diff -Nru a/include/dt-bindings/reset/sun60iw2-r-ccu.h b/include/dt-bindings/reset/sun60iw2-r-ccu.h
 --- a/include/dt-bindings/reset/sun60iw2-r-ccu.h	1970-01-01 01:00:00.000000000 +0100
-+++ b/include/dt-bindings/reset/sun60iw2-r-ccu.h	2026-10-18 15:17:10.218394780 +0200
++++ b/include/dt-bindings/reset/sun60iw2-r-ccu.h	2026-10-18 15:20:57.335698886 +0200
 @@ -0,0 +1,25 @@
 +/* SPDX-License-Identifier: (GPL-2.0+ or MIT) */
 +/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
@@ -11989,3 +12026,25 @@ diff -Nru a/include/dt-bindings/reset/sun60iw2-r-ccu.h b/include/dt-bindings/res
 +#define RST_BUS_MODULE		13
 +
 +#endif /* _DT_BINDINGS_RST_SUN60IW2_R_CCU_H_ */
+diff -Nru a/include/dt-bindings/spi/sunxi-spi.h b/include/dt-bindings/spi/sunxi-spi.h
+--- a/include/dt-bindings/spi/sunxi-spi.h	1970-01-01 01:00:00.000000000 +0100
++++ b/include/dt-bindings/spi/sunxi-spi.h	2026-10-18 15:20:57.336698879 +0200
+@@ -0,0 +1,18 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++/* Copyright(c) 2020 - 2023 Allwinner Technology Co.,Ltd. All rights reserved. */
++
++#ifndef __DT_SUNXI_SPI_H
++#define __DT_SUNXI_SPI_H
++
++#define SUNXI_SPI_BUS_MASTER	(1 << 0)
++#define SUNXI_SPI_BUS_SLAVE		(1 << 1)
++#define SUNXI_SPI_BUS_DBI		(1 << 2)
++#define SUNXI_SPI_BUS_BIT		(1 << 3)
++#define SUNXI_SPI_BUS_NOR		(1 << 4)
++#define SUNXI_SPI_BUS_NAND		(1 << 5)
++#define SUNXI_SPI_BUS_CAMERA	(1 << 6)
++
++#define SUNXI_SPI_CS_AUTO	0
++#define SUNXI_SPI_CS_SOFT	1
++
++#endif /* __DT_SUNXI_SPI_H */
