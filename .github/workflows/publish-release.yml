@@ -12,7 +12,7 @@ on:
         required: true
         default: 'Orange Pi 4 Pro Debian Bookworm (Linux 6.18 Mainline)'
       run_id:
-        description: 'Workflow Run ID to fetch artifacts from'
+        description: 'Workflow Run ID to fetch image artifact from'
         required: false
         default: '39145967587'
       prerelease:
@@ -47,7 +47,7 @@ jobs:
             TARGET_RUN_ID=$(gh run list --workflow="Build Orange Pi 4 Pro Debian Bookworm Image" --status=success --limit=1 --json databaseId -q '.[0].databaseId')
           fi
 
-          echo "Fetching artifacts from run ID: $TARGET_RUN_ID"
+          echo "Fetching image artifact from run ID: $TARGET_RUN_ID"
           gh run download "$TARGET_RUN_ID" -n orangepi4pro-bookworm-image --dir release_files/
 
           # Also attempt to download kernel deb packages from the latest successful kernel run
@@ -64,28 +64,37 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${{ github.event.inputs.tag_name || github.ref_name }}"
-          TITLE="${{ github.event.inputs.release_title || github.ref_name }}"
+          TAG="${{ github.event.inputs.tag_name }}"
+          if [ -z "$TAG" ]; then
+            TAG="${GITHUB_REF_NAME}"
+          fi
+
+          TITLE="${{ github.event.inputs.release_title }}"
+          if [ -z "$TITLE" ]; then
+            TITLE="Orange Pi 4 Pro Debian Bookworm (${TAG})"
+          fi
+
           PRERELEASE_FLAG=""
           if [ "${{ github.event.inputs.prerelease }}" = "true" ]; then
             PRERELEASE_FLAG="--prerelease"
           fi
 
           cat << 'EOF' > release_notes.md
-## Orange Pi 4 Pro (Allwinner A733 / sun60iw2)
+          ## Orange Pi 4 Pro (Allwinner A733 / sun60iw2)
 
-### Highlights
-- **Kernel**: Mainline Linux 6.18.y (`linux-6.18.y`)
-- **Distribution**: Debian 12 Bookworm (minimal)
-- **Modularized Peripherals**: Network, GPU, Wi-Fi, and Bluetooth configured as on-demand modules (`=m`)
-- **Memory & Power**: `cma=256M`, suspend/sleep disabled for maximum operational stability
-- **Bootloader**: U-Boot next (`2021.07-sun60iw2`) with unified mainline DT aliases
+          ### Highlights
+          - **Kernel**: Mainline Linux 6.18.y (`linux-6.18.y`)
+          - **Distribution**: Debian 12 Bookworm (minimal)
+          - **Modularized Peripherals**: Network, GPU, Wi-Fi, and Bluetooth configured as on-demand modules (`=m`)
+          - **Memory & Power**: `cma=256M`, suspend/sleep disabled for maximum operational stability
+          - **Bootloader**: U-Boot next (`2021.07-sun60iw2`) with unified mainline DT aliases
 
-### Verification
-Checksums (`.sha256`) are provided alongside image assets for integrity verification.
-EOF
+          ### Verification
+          Checksums (`.sha256`) are provided alongside image assets for integrity verification.
+          EOF
+          sed -i 's/^[[:space:]]*//' release_notes.md
 
-          # Check if release already exists
+          echo "Creating or updating release $TAG with title '$TITLE'..."
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Updating existing release: $TAG"
             gh release upload "$TAG" release_files/* --clobber
