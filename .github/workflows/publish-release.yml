@@ -39,26 +39,32 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p release_files
+          mkdir -p raw_artifacts release_files
 
           TARGET_RUN_ID="${{ github.event.inputs.run_id }}"
           if [ -z "$TARGET_RUN_ID" ]; then
-            # Find the latest successful image build run if not specified
             TARGET_RUN_ID=$(gh run list --workflow="Build Orange Pi 4 Pro Debian Bookworm Image" --status=success --limit=1 --json databaseId -q '.[0].databaseId')
           fi
 
-          echo "Fetching image artifact from run ID: $TARGET_RUN_ID"
-          gh run download "$TARGET_RUN_ID" -n orangepi4pro-bookworm-image --dir release_files/
+          echo "Downloading image artifacts from run ID: $TARGET_RUN_ID"
+          gh run download "$TARGET_RUN_ID" --dir raw_artifacts/
 
-          # Also attempt to download kernel deb packages from the latest successful kernel run
+          # Also download kernel deb packages from the latest successful kernel run
           KERNEL_RUN_ID=$(gh run list --workflow="Build Mainline 6.18 Kernel for Orange Pi 4 Pro" --status=success --limit=1 --json databaseId -q '.[0].databaseId' || true)
           if [ -n "$KERNEL_RUN_ID" ]; then
-            echo "Fetching kernel artifacts from run ID: $KERNEL_RUN_ID"
-            gh run download "$KERNEL_RUN_ID" -n orangepi4pro-kernel-6.18 --dir release_files/ || true
+            echo "Downloading kernel artifacts from run ID: $KERNEL_RUN_ID"
+            gh run download "$KERNEL_RUN_ID" --dir raw_artifacts/ || true
           fi
 
-          echo "Files ready for release:"
+          echo "Flattening downloaded files into release_files/..."
+          find raw_artifacts/ -type f -exec cp -v {} release_files/ \;
+
+          echo "=== Release Files ==="
           ls -lh release_files/
+          echo "### Files Prepared for Release" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -lh release_files/ >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Create or Update GitHub Release
         env:
@@ -94,14 +100,27 @@ jobs:
           EOF
           sed -i 's/^[[:space:]]*//' release_notes.md
 
-          echo "Creating or updating release $TAG with title '$TITLE'..."
+          echo "Publishing release $TAG with title '$TITLE'..."
+          set +e
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Updating existing release: $TAG"
-            gh release upload "$TAG" release_files/* --clobber
+            echo "Release $TAG exists, uploading assets..."
+            gh release upload "$TAG" release_files/* --clobber 2>&1 | tee /tmp/upload.log
+            RC=${PIPESTATUS[0]}
           else
-            echo "Creating new release: $TAG"
+            echo "Creating new release $TAG..."
             gh release create "$TAG" release_files/* \
               --title "$TITLE" \
               --notes-file release_notes.md \
-              $PRERELEASE_FLAG
+              $PRERELEASE_FLAG 2>&1 | tee /tmp/upload.log
+            RC=${PIPESTATUS[0]}
+          fi
+
+          if [ $RC -ne 0 ]; then
+            echo "### Release Failed" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat /tmp/upload.log >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit $RC
+          else
+            echo "### Release Published Successfully: $TAG" >> $GITHUB_STEP_SUMMARY
           fi
