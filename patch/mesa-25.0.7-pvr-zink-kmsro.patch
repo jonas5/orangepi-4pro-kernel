@@ -59,6 +59,30 @@ index 945c447..2772a75 100644
  #endif
     };
  
+diff --git a/src/gallium/drivers/zink/zink_bo.c b/src/gallium/drivers/zink/zink_bo.c
+index 7ec0c5f..a42f958 100644
+--- a/src/gallium/drivers/zink/zink_bo.c
++++ b/src/gallium/drivers/zink/zink_bo.c
+@@ -253,7 +253,8 @@ bo_create_internal(struct zink_screen *screen,
+                    const void *pNext)
+ {
+    struct zink_bo *bo = NULL;
+-   bool init_pb_cache;
++   /* All non-suballocated internal BOs can be cached; check original caller pNext before modifying it */
++   bool init_pb_cache = !pNext;
+ 
+    alignment = get_optimal_alignment(screen, size, alignment);
+ 
+@@ -288,9 +289,6 @@ bo_create_internal(struct zink_screen *screen,
+       return NULL;
+    }
+ 
+-   /* all non-suballocated bo can cache */
+-   init_pb_cache = !pNext;
+-
+    if (!bo)
+       bo = CALLOC(1, sizeof(struct zink_bo) + init_pb_cache * sizeof(struct pb_cache_entry));
+    if (!bo) {
 diff --git a/src/gallium/drivers/zink/zink_compiler.c b/src/gallium/drivers/zink/zink_compiler.c
 index 5613724..7e19efb 100644
 --- a/src/gallium/drivers/zink/zink_compiler.c
@@ -466,7 +490,7 @@ index 2357696..59965e4 100644
  zink_win32_create_screen(uint64_t adapter_luid);
  #endif
 diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
-index bc0cc58..2cb8d15 100644
+index bc0cc58..2bbc8f0 100644
 --- a/src/gallium/drivers/zink/zink_screen.c
 +++ b/src/gallium/drivers/zink/zink_screen.c
 @@ -842,7 +842,10 @@ zink_init_screen_caps(struct zink_screen *screen)
@@ -541,7 +565,31 @@ index bc0cc58..2cb8d15 100644
        screen->driver_workarounds.no_hw_gl_point = true;
        break;
     default:
-@@ -3454,11 +3479,16 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
+@@ -2938,6 +2963,7 @@ init_driver_workarounds(struct zink_screen *screen)
+    case VK_DRIVER_ID_NVIDIA_PROPRIETARY:
+    case VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS:
+    case VK_DRIVER_ID_IMAGINATION_PROPRIETARY:
++   case VK_DRIVER_ID_IMAGINATION_OPEN_SOURCE_MESA:
+       screen->driver_workarounds.always_feedback_loop = screen->info.have_EXT_attachment_feedback_loop_layout;
+       break;
+    default:
+@@ -2948,6 +2974,7 @@ init_driver_workarounds(struct zink_screen *screen)
+    case VK_DRIVER_ID_MESA_LLVMPIPE:
+    case VK_DRIVER_ID_NVIDIA_PROPRIETARY:
+    case VK_DRIVER_ID_IMAGINATION_PROPRIETARY:
++   case VK_DRIVER_ID_IMAGINATION_OPEN_SOURCE_MESA:
+       screen->driver_workarounds.always_feedback_loop_zs = screen->info.have_EXT_attachment_feedback_loop_layout;
+       break;
+    default:
+@@ -2962,6 +2989,7 @@ init_driver_workarounds(struct zink_screen *screen)
+     */
+    switch (zink_driverid(screen)) {
+    case VK_DRIVER_ID_IMAGINATION_PROPRIETARY:
++   case VK_DRIVER_ID_IMAGINATION_OPEN_SOURCE_MESA:
+       screen->driver_compiler_workarounds.needs_sanitised_layer = true;
+       break;
+    default:
+@@ -3454,11 +3482,16 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
        goto fail;
     }
  
@@ -563,7 +611,7 @@ index bc0cc58..2cb8d15 100644
  
     if (zink_debug & ZINK_DEBUG_MEM) {
        simple_mtx_init(&screen->debug_mem_lock, mtx_plain);
-@@ -3788,18 +3818,18 @@ free_device:
+@@ -3788,18 +3821,18 @@ free_device:
  }
  
  struct pipe_screen *
@@ -585,7 +633,7 @@ index bc0cc58..2cb8d15 100644
     if (ret && !ret->info.have_KHR_external_memory_fd) {
        debug_printf("ZINK: KHR_external_memory_fd required!\n");
        zink_destroy_screen(&ret->base);
-@@ -3809,6 +3839,12 @@ zink_drm_create_screen(int fd, const struct pipe_screen_config *config)
+@@ -3809,6 +3842,12 @@ zink_drm_create_screen(int fd, const struct pipe_screen_config *config)
     return &ret->base;
  }
  
