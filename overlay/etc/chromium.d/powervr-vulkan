@@ -3,4 +3,11 @@ export PVR_I_WANT_A_BROKEN_VULKAN_DRIVER=1
 export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/powervr_mesa_icd.json
 export MESA_GLES_VERSION_OVERRIDE=3.0
 
-export CHROMIUM_FLAGS="$CHROMIUM_FLAGS --ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy --ozone-platform=wayland --use-gl=angle --use-angle=gles"
+export CHROMIUM_FLAGS="$CHROMIUM_FLAGS \
+  --ignore-gpu-blocklist \
+  --enable-gpu-rasterization \
+  --ozone-platform=wayland \
+  --use-gl=angle \
+  --use-angle=gles \
+  --disable-gpu-memory-buffer-video-frames \
+  --load-extension=/usr/share/chromium/extensions/enhanced-h264ify"
