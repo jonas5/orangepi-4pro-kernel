@@ -10,4 +10,6 @@ export CHROMIUM_FLAGS="$CHROMIUM_FLAGS \
   --use-gl=angle \
   --use-angle=gles \
   --disable-gpu-memory-buffer-video-frames \
+  --video-threads=4 \
+  --disable-frame-rate-limit \
   --load-extension=/usr/share/chromium/extensions/enhanced-h264ify"
