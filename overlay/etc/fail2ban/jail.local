@@ -1,0 +1,32 @@
+[DEFAULT]
+# Whitelist local loopback and internal WireGuard VPN subnet
+ignoreip = 127.0.0.1/8 ::1 10.9.0.0/24
+
+# Default ban duration: 24 hours (1 day)
+bantime = 1d
+
+# Window to evaluate failed attempts: 10 minutes
+findtime = 10m
+
+# Ban after 3 failed attempts
+maxretry = 3
+
+# Progressive / Exponential banning for repeat offenders (up to 4 weeks)
+bantime.increment = true
+bantime.rndtime = 30m
+bantime.maxtime = 4w
+bantime.factor = 2
+
+# Backend & firewall action
+banaction = nftables
+banaction_allports = nftables[type=allports]
+backend = systemd
+
+[sshd]
+enabled = true
+port = ssh
+mode = aggressive
+logpath = %(sshd_log)s
+maxretry = 3
+bantime = 1d
+findtime = 10m
