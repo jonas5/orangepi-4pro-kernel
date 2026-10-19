@@ -94,6 +94,10 @@ jobs:
           mkdir -p orangepi-build/external/config/kernel
           cp config/orangepi_4pro_defconfig orangepi-build/external/config/kernel/linux-sun60iw2-next-a733.config
 
+          # Copy desktop and hardware integration overlays
+          mkdir -p orangepi-build/external/packages/bsp/common
+          cp -rv overlay/* orangepi-build/external/packages/bsp/common/
+
       - name: Build SD Image via orangepi-build
         if: github.event.inputs.reuse_run_id == ''
         run: |

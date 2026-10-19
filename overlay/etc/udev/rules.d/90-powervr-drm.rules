@@ -1,0 +1,5 @@
+# PowerVR Rogue BXM-4-64 is render-only; tag card1 with mutter-device-ignore so Mutter only uses sunxi-drm
+SUBSYSTEM=="drm", KERNEL=="card[1-9]*", KERNELS=="1800000.gpu", TAG+="mutter-device-ignore", TAG-="master-of-seat"
+
+# sunxi-drm does not support KMS modifiers, so disable them in Mutter
+SUBSYSTEM=="drm", KERNEL=="card0", TAG+="mutter-device-disable-kms-modifiers"

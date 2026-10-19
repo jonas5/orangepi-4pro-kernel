@@ -1,0 +1,13 @@
+[Unit]
+Description=Load PowerVR DRM Kernel Module before Display Manager
+DefaultDependencies=no
+After=systemd-modules-load.service
+Before=gdm.service display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/sbin/modprobe powervr
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target

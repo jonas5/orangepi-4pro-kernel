@@ -1,0 +1,803 @@
+diff --git a/meson.build b/meson.build
+index 095aec5..7c59cd3 100644
+--- a/meson.build
++++ b/meson.build
+@@ -222,6 +222,7 @@ with_gallium_kmsro = system_has_kms_drm and [
+   with_gallium_panfrost,
+   with_gallium_v3d,
+   with_gallium_vc4,
++  with_gallium_zink,
+ ].contains(true)
+ 
+ _vulkan_drivers = get_option('vulkan-drivers')
+diff --git a/src/gallium/auxiliary/pipe-loader/meson.build b/src/gallium/auxiliary/pipe-loader/meson.build
+index c828cab..65cb4e6 100644
+--- a/src/gallium/auxiliary/pipe-loader/meson.build
++++ b/src/gallium/auxiliary/pipe-loader/meson.build
+@@ -39,6 +39,9 @@ endif
+ if with_gallium_asahi
+   renderonly_drivers_c_args += '-DGALLIUM_ASAHI'
+ endif
++if with_gallium_zink
++  renderonly_drivers_c_args += '-DGALLIUM_ZINK'
++endif
+ 
+ libpipe_loader_static = static_library(
+   'pipe_loader_static',
+diff --git a/src/gallium/auxiliary/pipe-loader/pipe_loader_drm.c b/src/gallium/auxiliary/pipe-loader/pipe_loader_drm.c
+index 945c447..2772a75 100644
+--- a/src/gallium/auxiliary/pipe-loader/pipe_loader_drm.c
++++ b/src/gallium/auxiliary/pipe-loader/pipe_loader_drm.c
+@@ -99,6 +99,9 @@ static const struct drm_driver_descriptor *
+ get_driver_descriptor(const char *driver_name, struct util_dl_library **plib)
+ {
+ #ifdef GALLIUM_STATIC_TARGETS
++   if (strcmp(driver_name, "powervr") == 0 || strcmp(driver_name, "pvr") == 0)
++      return &zink_driver_descriptor;
++
+    for (int i = 0; i < ARRAY_SIZE(driver_descriptors); i++) {
+       if (strcmp(driver_descriptors[i]->driver_name, driver_name) == 0)
+          return driver_descriptors[i];
+@@ -172,6 +175,10 @@ pipe_loader_drm_probe_fd_nodup(struct pipe_loader_device **dev, int fd, bool zin
+       FREE(ddev->base.driver_name);
+       ddev->base.driver_name = strdup("radeonsi");
+    }
++   if (strcmp(ddev->base.driver_name, "sunxi-drm") == 0) {
++      FREE(ddev->base.driver_name);
++      ddev->base.driver_name = strdup("sun4i-drm");
++   }
+ 
+    if (strcmp(ddev->base.driver_name, "virtio_gpu") == 0) {
+       struct virgl_renderer_capset_drm caps;
+@@ -349,6 +356,9 @@ pipe_loader_get_compatible_render_capable_device_fds(int kms_only_fd, unsigned i
+ #endif
+ #if defined GALLIUM_VC4
+       "vc4",
++#endif
++#if defined GALLIUM_ZINK
++      "powervr",
+ #endif
+    };
+ 
+diff --git a/src/gallium/drivers/zink/zink_compiler.c b/src/gallium/drivers/zink/zink_compiler.c
+index 5613724..7e19efb 100644
+--- a/src/gallium/drivers/zink/zink_compiler.c
++++ b/src/gallium/drivers/zink/zink_compiler.c
+@@ -107,6 +107,8 @@ fields[member_idx].offset = offsetof(struct zink_gfx_push_constant, field);
+    PUSHCONST_MEMBER(ZINK_GFX_PUSHCONST_LINE_STIPPLE_PATTERN, line_stipple_pattern);
+    PUSHCONST_MEMBER(ZINK_GFX_PUSHCONST_VIEWPORT_SCALE, viewport_scale);
+    PUSHCONST_MEMBER(ZINK_GFX_PUSHCONST_LINE_WIDTH, line_width);
++   PUSHCONST_MEMBER(ZINK_GFX_PUSHCONST_XFB_ADDR_LO, xfb_addr_lo);
++   PUSHCONST_MEMBER(ZINK_GFX_PUSHCONST_XFB_ADDR_HI, xfb_addr_hi);
+ 
+    pushconst = nir_variable_create(nir, nir_var_mem_push_const,
+                                    glsl_struct_type(fields, ZINK_GFX_PUSHCONST_MAX, "struct", false),
+@@ -1886,6 +1888,72 @@ find_packed_output(const nir_xfb_info *xfb_info, unsigned slot)
+    return NULL;
+ }
+ 
++/* Emulate transform feedback on drivers without VK_EXT_transform_feedback.
++ *
++ * The captured outputs are stored to the feedback buffer, whose device address
++ * arrives in a push constant. Each output goes to
++ *     base + vertex_index * stride + offset
++ * which is exactly the layout the frontend asked for, and indexing by vertex
++ * keeps the capture order deterministic without needing atomics.
++ *
++ * Runs at the end of the entrypoint so it reads the final value of each output.
++ */
++static bool
++lower_xfb_to_stores(nir_shader *shader)
++{
++   if (!shader->xfb_info || !shader->xfb_info->output_count)
++      return false;
++
++   nir_function_impl *impl = nir_shader_get_entrypoint(shader);
++   nir_builder b = nir_builder_create(impl);
++   b.cursor = nir_after_cf_list(&impl->body);
++
++   nir_def *lo = nir_load_push_constant_zink(&b, 1, 32,
++                     nir_imm_int(&b, ZINK_GFX_PUSHCONST_XFB_ADDR_LO));
++   nir_def *hi = nir_load_push_constant_zink(&b, 1, 32,
++                     nir_imm_int(&b, ZINK_GFX_PUSHCONST_XFB_ADDR_HI));
++   nir_def *base = nir_ior(&b, nir_u2u64(&b, lo),
++                           nir_ishl(&b, nir_u2u64(&b, hi), nir_imm_int(&b, 32)));
++   nir_def *vid = nir_u2u64(&b, nir_load_vertex_id(&b));
++
++   bool progress = false;
++   for (unsigned i = 0; i < shader->xfb_info->output_count; i++) {
++      const nir_xfb_output_info *out = &shader->xfb_info->outputs[i];
++      unsigned stride = shader->xfb_info->buffers[out->buffer].stride;
++      nir_variable *var = nir_find_variable_with_location(shader, nir_var_shader_out,
++                                                          out->location);
++      if (!var)
++         continue;
++
++      /* The varying may be scalarised, so each captured component can live in
++       * its own variable at its own location_frac - which is exactly what
++       * find_var_with_location_frac resolves. */
++      unsigned n = util_bitcount(out->component_mask);
++      nir_def *comps[4];
++      unsigned idx = 0;
++      for (unsigned c = 0; c < 4 && idx < n; c++) {
++         if (!(out->component_mask & (1u << c)))
++            continue;
++         unsigned comp = out->component_offset + c;
++         nir_variable *cv = find_var_with_location_frac(shader, out->location, comp, false,
++                                                        nir_var_shader_out);
++         if (!cv)
++            continue;
++         nir_def *v = nir_load_var(&b, cv);
++         unsigned sub = comp - cv->data.location_frac;
++         comps[idx++] = v->num_components > 1 ? nir_channel(&b, v, sub) : v;
++      }
++      if (!idx)
++         continue;
++
++      nir_def *packed = nir_vec(&b, comps, idx);
++      nir_def *off = nir_iadd_imm(&b, nir_imul_imm(&b, vid, stride), out->offset);
++      nir_store_global(&b, nir_iadd(&b, base, off), 4, packed, (1u << idx) - 1);
++      progress = true;
++   }
++   return progress;
++}
++
+ static void
+ update_so_info(struct zink_shader *zs, nir_shader *nir, uint64_t outputs_written, bool have_psiz)
+ {
+@@ -3995,6 +4063,12 @@ zink_shader_compile(struct zink_screen *screen, bool can_shobj, struct zink_shad
+          }
+       }
+ 
++      if (screen->driver_workarounds.emulate_tf && nir->xfb_info &&
++          zs->info.stage == MESA_SHADER_VERTEX) {
++         NIR_PASS_V(nir, lower_xfb_to_stores);
++         need_optimize = true;
++      }
++
+       switch (zs->info.stage) {
+       case MESA_SHADER_VERTEX:
+       case MESA_SHADER_TESS_EVAL:
+diff --git a/src/gallium/drivers/zink/zink_draw.cpp b/src/gallium/drivers/zink/zink_draw.cpp
+index 7284016..c42fe3a 100644
+--- a/src/gallium/drivers/zink/zink_draw.cpp
++++ b/src/gallium/drivers/zink/zink_draw.cpp
+@@ -17,6 +17,7 @@
+ #include "util/u_helpers.h"
+ #include "util/u_inlines.h"
+ #include "util/u_prim.h"
++#include "util/u_upload_mgr.h"
+ #include "util/u_prim_restart.h"
+ 
+ static void
+@@ -82,9 +83,13 @@ zink_emit_stream_output_targets(struct pipe_context *pctx)
+                      t->base.buffer_offset + t->base.buffer_size);
+    }
+ 
+-   VKCTX(CmdBindTransformFeedbackBuffersEXT)(ctx->bs->cmdbuf, 0, ctx->num_so_targets,
+-                                                 buffers, buffer_offsets,
+-                                                 buffer_sizes);
++   /* With emulation the address is pushed to the shader instead, so the Vulkan
++    * command - and the entry point behind it - must not be called. The resource
++    * bookkeeping above still has to run. */
++   if (!zink_screen(pctx->screen)->driver_workarounds.emulate_tf)
++      VKCTX(CmdBindTransformFeedbackBuffersEXT)(ctx->bs->cmdbuf, 0, ctx->num_so_targets,
++                                                    buffers, buffer_offsets,
++                                                    buffer_sizes);
+    ctx->dirty_so_targets = false;
+ }
+ 
+@@ -762,6 +767,17 @@ zink_draw(struct pipe_context *pctx,
+        ctx->curr_program->base.dd.bindless)
+       zink_descriptors_update_bindless(ctx);
+ 
++   /* Without VK_EXT_transform_feedback the shader stores the captured outputs
++    * itself, so hand it the feedback buffer's device address. */
++   if (screen->driver_workarounds.emulate_tf && ctx->num_so_targets && ctx->so_targets[0]) {
++      struct zink_resource *so = zink_resource(ctx->so_targets[0]->buffer);
++      uint64_t addr = zink_resource_get_address(screen, so) + ctx->so_targets[0]->buffer_offset;
++      uint32_t parts[2] = { (uint32_t)addr, (uint32_t)(addr >> 32) };
++      VKCTX(CmdPushConstants)(bs->cmdbuf, ctx->curr_program->base.layout, VK_SHADER_STAGE_ALL_GRAPHICS,
++                              offsetof(struct zink_gfx_push_constant, xfb_addr_lo),
++                              sizeof(parts), parts);
++   }
++
+    if (reads_basevertex) {
+       unsigned draw_mode_is_indexed = index_size > 0;
+       VKCTX(CmdPushConstants)(bs->cmdbuf, ctx->curr_program->base.layout, VK_SHADER_STAGE_ALL_GRAPHICS,
+@@ -831,7 +847,8 @@ zink_draw(struct pipe_context *pctx,
+             }
+          }
+       }
+-      VKCTX(CmdBeginTransformFeedbackEXT)(bs->cmdbuf, 0, ctx->num_so_targets, counter_buffers, counter_buffer_offsets);
++      if (!screen->driver_workarounds.emulate_tf)
++         VKCTX(CmdBeginTransformFeedbackEXT)(bs->cmdbuf, 0, ctx->num_so_targets, counter_buffers, counter_buffer_offsets);
+    }
+ 
+    bool marker = false;
+@@ -896,6 +913,7 @@ zink_draw(struct pipe_context *pctx,
+                update_drawid(ctx, drawid_offset);
+             zink_batch_reference_resource_rw(ctx, zink_resource(so_target->base.buffer), false);
+             zink_batch_reference_resource_rw(ctx, zink_resource(so_target->counter_buffer), true);
++            if (!screen->driver_workarounds.emulate_tf)
+             VKCTX(CmdDrawIndirectByteCountEXT)(bs->cmdbuf, dinfo->instance_count, dinfo->start_instance,
+                                           zink_resource(so_target->counter_buffer)->obj->buffer, so_target->counter_buffer_offset, 0,
+                                           MIN2(so_target->stride, screen->info.tf_props.maxTransformFeedbackBufferDataStride));
+@@ -931,7 +949,8 @@ zink_draw(struct pipe_context *pctx,
+             t->counter_buffer_valid = true;
+          }
+       }
+-      VKCTX(CmdEndTransformFeedbackEXT)(bs->cmdbuf, 0, ctx->num_so_targets, counter_buffers, counter_buffer_offsets);
++      if (!screen->driver_workarounds.emulate_tf)
++         VKCTX(CmdEndTransformFeedbackEXT)(bs->cmdbuf, 0, ctx->num_so_targets, counter_buffers, counter_buffer_offsets);
+    }
+ 
+    ctx->last_work_was_compute = false;
+@@ -941,6 +960,178 @@ zink_draw(struct pipe_context *pctx,
+       pctx->flush(pctx, NULL, 0);
+ }
+ 
++/* Wireframe emulation for drivers without fillModeNonSolid.
++ *
++ * Vulkan has no "draw these triangles as lines" other than polygonMode = LINE,
++ * which this driver does not implement. So each triangle's three edges are
++ * written out as an index buffer and the draw is reissued as a line list. The
++ * geometry still runs on the GPU; only index generation is on the CPU.
++ *
++ * Returns false for a non-triangle mode, so the caller falls through.
++ */
++static bool
++zink_expand_wireframe(struct zink_context *ctx,
++                      const struct pipe_draw_info *info,
++                      unsigned drawid_offset,
++                      const struct pipe_draw_start_count_bias *draws,
++                      unsigned num_draws)
++{
++   struct pipe_context *pctx = &ctx->base;
++
++   switch (info->mode) {
++   case MESA_PRIM_TRIANGLES:
++   case MESA_PRIM_TRIANGLE_STRIP:
++   case MESA_PRIM_TRIANGLE_FAN:
++      break;
++   default:
++      return false;
++   }
++
++   /* Transform feedback would capture the lines this generates rather than the
++    * triangles the app asked for, so leave the draw alone while it is active. */
++   if (ctx->num_so_targets)
++      return false;
++
++   unsigned total = 0;
++   for (unsigned i = 0; i < num_draws; i++) {
++      unsigned n = draws[i].count;
++      unsigned tris = info->mode == MESA_PRIM_TRIANGLES ? n / 3 : (n >= 3 ? n - 2 : 0);
++      total += tris * 6;
++   }
++   if (total == 0)
++      return true;   /* nothing to draw, and nothing to fall back to */
++
++   struct pipe_transfer *src_transfer = NULL;
++   const void *src = NULL;
++   if (info->index_size) {
++      if (info->has_user_indices)
++         src = info->index.user;
++      else
++         src = pipe_buffer_map(pctx, info->index.resource, PIPE_MAP_READ, &src_transfer);
++      if (!src)
++         return false;
++   }
++
++   /* Per-vertex edge flags, when the shader reads them. st/mesa appends the edge
++    * flag as the last vertex input, so it is the last element. An edge is drawn
++    * only when the flag of its first vertex is set. */
++   const uint8_t *ef = NULL;
++   unsigned ef_stride = 1;
++   struct pipe_transfer *ef_transfer = NULL;
++   if (ctx->gfx_stages[MESA_SHADER_VERTEX] && ctx->gfx_stages[MESA_SHADER_VERTEX]->has_edgeflags &&
++       ctx->element_state && ctx->element_state->num_elements) {
++      const struct pipe_vertex_element *el =
++         &ctx->element_state->elements[ctx->element_state->num_elements - 1];
++      const struct pipe_vertex_buffer *vb = &ctx->vertex_buffers[el->vertex_buffer_index];
++      const void *base = NULL;
++      if (vb->is_user_buffer)
++         base = vb->buffer.user;
++      else if (vb->buffer.resource)
++         base = pipe_buffer_map(pctx, vb->buffer.resource, PIPE_MAP_READ, &ef_transfer);
++      if (base) {
++         ef = (const uint8_t *)base + vb->buffer_offset + el->src_offset;
++         ef_stride = el->src_stride ? el->src_stride : 1;
++      }
++   }
++
++   struct pipe_resource *ib = NULL;
++   unsigned ib_offset = 0;
++   void *map = NULL;
++   u_upload_alloc(pctx->stream_uploader, 0, total * 4, 4, &ib_offset, &ib, &map);
++   uint32_t *dst = (uint32_t *)map;
++   if (!dst) {
++      if (src_transfer)
++         pipe_buffer_unmap(pctx, src_transfer);
++      return false;
++   }
++
++   auto idx_at = [&](unsigned d, unsigned k) -> uint32_t {
++      unsigned at = draws[d].start + k;
++      if (src == NULL) return at;
++      if (info->index_size == 4) return ((const uint32_t *)src)[at];
++      if (info->index_size == 2) return ((const uint16_t *)src)[at];
++      return ((const uint8_t *)src)[at];
++   };
++
++   unsigned w = 0;
++   auto emit_edge = [&](uint32_t a, uint32_t b) {
++      dst[w++] = a; dst[w++] = b;
++   };
++   auto emit = [&](uint32_t a, uint32_t b, uint32_t c) {
++      if (!ef) {
++         emit_edge(a, b);
++         emit_edge(b, c);
++         emit_edge(c, a);
++         return;
++      }
++      if (ef[a * ef_stride]) emit_edge(a, b);
++      if (ef[b * ef_stride]) emit_edge(b, c);
++      if (ef[c * ef_stride]) emit_edge(c, a);
++   };
++
++   for (unsigned i = 0; i < num_draws; i++) {
++      unsigned n = draws[i].count;
++
++      if (info->mode == MESA_PRIM_TRIANGLES) {
++         for (unsigned j = 0; j + 3 <= n; j += 3)
++            emit(idx_at(i, j), idx_at(i, j + 1), idx_at(i, j + 2));
++         continue;
++      }
++
++      /* Strips and fans walk their vertices, starting a new primitive at every
++       * restart index, so a restart never draws an edge across the break. */
++      uint32_t prev1 = 0, prev2 = 0, anchor = 0;
++      unsigned seg = 0;
++      for (unsigned j = 0; j < n; j++) {
++         uint32_t id = idx_at(i, j);
++         if (info->primitive_restart && id == info->restart_index) {
++            seg = 0;
++            continue;
++         }
++         if (info->mode == MESA_PRIM_TRIANGLE_STRIP) {
++            if (seg >= 2)
++               emit(prev2, prev1, id);
++            prev2 = prev1;
++            prev1 = id;
++         } else {
++            if (seg == 0)
++               anchor = id;
++            else if (seg >= 2)
++               emit(anchor, prev1, id);
++            prev1 = id;
++         }
++         seg++;
++      }
++   }
++   u_upload_unmap(pctx->stream_uploader);
++   if (src_transfer)
++      pipe_buffer_unmap(pctx, src_transfer);
++   if (ef_transfer)
++      pipe_buffer_unmap(pctx, ef_transfer);
++
++   struct pipe_draw_info linfo = {};
++   linfo.mode = MESA_PRIM_LINES;
++   linfo.index_size = 4;
++   linfo.index.resource = ib;
++   linfo.index_bounds_valid = false;
++   linfo.min_index = 0;
++   linfo.max_index = UINT32_MAX;
++   linfo.instance_count = info->instance_count;
++   linfo.start_instance = info->start_instance;
++   struct pipe_draw_start_count_bias ldraw = {};
++   /* u_upload_alloc hands back a byte offset into a shared buffer, so the draw
++    * has to start there rather than at index 0. */
++   ldraw.start = ib_offset / 4;
++   ldraw.count = w;
++
++   ctx->expanding_wireframe = true;
++   pctx->draw_vbo(pctx, &linfo, drawid_offset, NULL, &ldraw, 1);
++   ctx->expanding_wireframe = false;
++
++   pipe_resource_reference(&ib, NULL);
++   return true;
++}
++
+ template <zink_multidraw HAS_MULTIDRAW, zink_dynamic_state DYNAMIC_STATE, bool BATCH_CHANGED>
+ static void
+ zink_draw_vbo(struct pipe_context *pctx,
+@@ -950,6 +1141,31 @@ zink_draw_vbo(struct pipe_context *pctx,
+               const struct pipe_draw_start_count_bias *draws,
+               unsigned num_draws)
+ {
++   /* No fillModeNonSolid on this driver: expand a wireframe draw into an indexed
++    * line list rather than hand it a polygon mode the driver ignores. */
++   struct zink_context *ctx = zink_context(pctx);
++   if (!ctx->expanding_wireframe && ctx->rast_state &&
++       ctx->rast_state->base.fill_front == PIPE_POLYGON_MODE_LINE &&
++       zink_screen(pctx->screen)->driver_workarounds.no_hw_gl_wireframe) {
++      if (zink_expand_wireframe(ctx, info, drawid_offset, draws, num_draws))
++         return;
++   }
++
++   /* Polygon point mode: the vertex stream is already the polygon's vertices, so
++    * only the topology is wrong. This needs the vertex shader to write
++    * gl_PointSize - the driver has largePoints and takes the size from there -
++    * and st/mesa now exports it whenever the polygon mode is POINT. */
++   if (!ctx->expanding_wireframe && ctx->rast_state && ctx->num_so_targets == 0 &&
++       ctx->rast_state->base.fill_front == PIPE_POLYGON_MODE_POINT &&
++       zink_screen(pctx->screen)->driver_workarounds.no_hw_gl_point) {
++      struct pipe_draw_info pinfo = *info;
++      pinfo.mode = MESA_PRIM_POINTS;
++      ctx->expanding_wireframe = true;
++      pctx->draw_vbo(pctx, &pinfo, drawid_offset, indirect, draws, num_draws);
++      ctx->expanding_wireframe = false;
++      return;
++   }
++
+    zink_draw<HAS_MULTIDRAW, DYNAMIC_STATE, BATCH_CHANGED, false>(pctx, info, drawid_offset, indirect, draws, num_draws, NULL, 0);
+ }
+ 
+diff --git a/src/gallium/drivers/zink/zink_public.h b/src/gallium/drivers/zink/zink_public.h
+index 2357696..59965e4 100644
+--- a/src/gallium/drivers/zink/zink_public.h
++++ b/src/gallium/drivers/zink/zink_public.h
+@@ -24,6 +24,8 @@
+ #ifndef ZINK_PUBLIC_H
+ #define ZINK_PUBLIC_H
+ 
++#include <stdint.h>
++
+ struct pipe_screen;
+ struct sw_winsys;
+ struct pipe_screen_config;
+@@ -34,5 +36,7 @@ zink_create_screen(struct sw_winsys *winsys, const struct pipe_screen_config *co
+ struct pipe_screen *
+ zink_drm_create_screen(int fd, const struct pipe_screen_config *config);
+ struct pipe_screen *
++zink_drm_create_screen_renderonly(int gpu_fd, int kms_fd, const struct pipe_screen_config *config);
++struct pipe_screen *
+ zink_win32_create_screen(uint64_t adapter_luid);
+ #endif
+diff --git a/src/gallium/drivers/zink/zink_screen.c b/src/gallium/drivers/zink/zink_screen.c
+index bc0cc58..2cb8d15 100644
+--- a/src/gallium/drivers/zink/zink_screen.c
++++ b/src/gallium/drivers/zink/zink_screen.c
+@@ -842,7 +842,10 @@ zink_init_screen_caps(struct zink_screen *screen)
+    caps->clip_halfz = true;
+    caps->texture_query_samples = true;
+    caps->texture_barrier = true;
+-   caps->query_so_overflow = true;
++   /* Stream-output overflow queries are VK_QUERY_TYPE_TRANSFORM_FEEDBACK_STREAM_EXT,
++    * which needs VK_EXT_transform_feedback. Advertising the GL extension without it
++    * points apps at a query type the driver cannot create. */
++   caps->query_so_overflow = screen->info.have_EXT_transform_feedback;
+    caps->gl_spirv = true;
+    caps->clear_scissored = true;
+    caps->invalidate_buffer = true;
+@@ -985,11 +988,20 @@ zink_init_screen_caps(struct zink_screen *screen)
+ 
+    caps->dithering = false;
+ 
+-   caps->max_stream_output_buffers =
+-      screen->info.have_EXT_transform_feedback ?
+-      screen->info.tf_props.maxTransformFeedbackBuffers : 0;
+-   caps->stream_output_pause_resume =
+-   caps->stream_output_interleave_buffers = screen->info.have_EXT_transform_feedback;
++   if (screen->info.have_EXT_transform_feedback) {
++      caps->max_stream_output_buffers = screen->info.tf_props.maxTransformFeedbackBuffers;
++      caps->stream_output_pause_resume =
++      caps->stream_output_interleave_buffers = true;
++   } else {
++      /* No Vulkan transform feedback, so capture it with global stores from the
++       * vertex stage instead. That covers a single buffer, with no pause/resume
++       * and no interleaving - which is all the frontend needs to expose the
++       * extension. */
++      screen->driver_workarounds.emulate_tf = true;
++      caps->max_stream_output_buffers = 1;
++      caps->stream_output_pause_resume = false;
++      caps->stream_output_interleave_buffers = false;
++   }
+ 
+    caps->max_texture_array_layers = screen->info.props.limits.maxImageArrayLayers;
+ 
+@@ -2900,10 +2912,22 @@ init_driver_workarounds(struct zink_screen *screen)
+       screen->driver_workarounds.no_linestipple = true;
+    }
+ 
+-   if (zink_driverid(screen) ==
+-       VK_DRIVER_ID_IMAGINATION_PROPRIETARY) {
+-      assert(screen->info.feats.features.geometryShader);
++   if (zink_driverid(screen) == VK_DRIVER_ID_IMAGINATION_PROPRIETARY ||
++       zink_driverid(screen) == VK_DRIVER_ID_IMAGINATION_OPEN_SOURCE_MESA) {
++      /* No assert that geometryShader is present: this driver reports it as
++       * absent, honestly, and the gate that used to reject it for that is
++       * gone - see the note where the gate used to be. */
+       screen->driver_workarounds.no_linesmooth = true;
++      if (!screen->info.feats.features.fillModeNonSolid)
++         screen->driver_workarounds.no_hw_gl_wireframe = true;
++
++      /* This driver implements no stippled line mode. zink's own no_linestipple
++       * condition also requires a geometry shader, because its fallback is a GS
++       * pass - so with the GS honestly absent zink would leave hardware stipple
++       * enabled and issue state the driver does not implement. Drop stipple
++       * instead, which is what the GS-faked configuration does. */
++      if (!screen->info.line_rast_feats.stippledBresenhamLines)
++         screen->driver_workarounds.no_linestipple = true;
+    }
+ 
+    /* This is a workarround for the lack of
+@@ -2912,6 +2936,7 @@ init_driver_workarounds(struct zink_screen *screen)
+     */
+    switch (zink_driverid(screen)) {
+    case VK_DRIVER_ID_IMAGINATION_PROPRIETARY:
++   case VK_DRIVER_ID_IMAGINATION_OPEN_SOURCE_MESA:
+       screen->driver_workarounds.no_hw_gl_point = true;
+       break;
+    default:
+@@ -3454,11 +3479,16 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
+       goto fail;
+    }
+ 
+-   if (zink_driverid(screen) == VK_DRIVER_ID_IMAGINATION_PROPRIETARY && !screen->info.feats.features.geometryShader) {
+-      if (!screen->driver_name_is_inferred)
+-         mesa_loge("zink: Imagination proprietary driver w/o geometryShader is unsupported");
+-      goto fail;
+-   }
++   /* A gate used to sit here rejecting VK_DRIVER_ID_IMAGINATION_PROPRIETARY when
++    * the driver reported no geometryShader (commit ca087e20, "zink: reject
++    * Imagination proprietary driver w/o geometryShader"). That report is honest,
++    * and the GS is only needed for smooth-line emulation, which zink already
++    * declines for this driver via no_linesmooth. Refusing to start costs more
++    * than the one capability: without the gate zink takes its ordinary non-GS
++    * path and the frontend lowers quads and quad strips to triangles, so they
++    * draw instead of aborting the process. Measured on a BXM-4-64: all five
++    * primitive types render.
++    */
+ 
+    if (zink_debug & ZINK_DEBUG_MEM) {
+       simple_mtx_init(&screen->debug_mem_lock, mtx_plain);
+@@ -3788,18 +3818,18 @@ free_device:
+ }
+ 
+ struct pipe_screen *
+-zink_drm_create_screen(int fd, const struct pipe_screen_config *config)
++zink_drm_create_screen_renderonly(int gpu_fd, int kms_fd, const struct pipe_screen_config *config)
+ {
+    int64_t dev_major, dev_minor;
+    struct zink_screen *ret;
+ 
+-   if (zink_render_rdev(fd, &dev_major, &dev_minor))
++   if (zink_render_rdev(gpu_fd, &dev_major, &dev_minor))
+       return NULL;
+ 
+    ret = zink_internal_create_screen(config, dev_major, dev_minor, 0);
+ 
+    if (ret)
+-      ret->drm_fd = os_dupfd_cloexec(fd);
++      ret->drm_fd = os_dupfd_cloexec(kms_fd >= 0 ? kms_fd : gpu_fd);
+    if (ret && !ret->info.have_KHR_external_memory_fd) {
+       debug_printf("ZINK: KHR_external_memory_fd required!\n");
+       zink_destroy_screen(&ret->base);
+@@ -3809,6 +3839,12 @@ zink_drm_create_screen(int fd, const struct pipe_screen_config *config)
+    return &ret->base;
+ }
+ 
++struct pipe_screen *
++zink_drm_create_screen(int fd, const struct pipe_screen_config *config)
++{
++   return zink_drm_create_screen_renderonly(fd, fd, config);
++}
++
+ struct pipe_screen *
+ zink_win32_create_screen(uint64_t adapter_luid)
+ {
+diff --git a/src/gallium/drivers/zink/zink_state.c b/src/gallium/drivers/zink/zink_state.c
+index 82b1fbf..dd2f04e 100644
+--- a/src/gallium/drivers/zink/zink_state.c
++++ b/src/gallium/drivers/zink/zink_state.c
+@@ -48,6 +48,9 @@ zink_create_vertex_elements_state(struct pipe_context *pctx,
+       return NULL;
+    ves->hw_state.hash = _mesa_hash_pointer(ves);
+ 
++   ves->num_elements = MIN2(num_elements, PIPE_MAX_ATTRIBS);
++   memcpy(ves->elements, elements, ves->num_elements * sizeof(elements[0]));
++
+    int buffer_map[PIPE_MAX_ATTRIBS];
+    for (int j = 0; j < ARRAY_SIZE(buffer_map); ++j)
+       buffer_map[j] = -1;
+@@ -613,7 +616,13 @@ zink_create_rasterizer_state(struct pipe_context *pctx,
+    if (rs_state->fill_back != rs_state->fill_front)
+       debug_printf("BUG: vulkan doesn't support different front and back fill modes\n");
+ 
+-   if (rs_state->fill_front == PIPE_POLYGON_MODE_POINT &&
++   if (rs_state->fill_front == PIPE_POLYGON_MODE_LINE &&
++       screen->driver_workarounds.no_hw_gl_wireframe) {
++      /* The driver has no fillModeNonSolid, so asking for LINE is invalid usage
++       * and it ignores it anyway. Draw filled and expand to lines in the draw. */
++      state->hw_state.polygon_mode = VK_POLYGON_MODE_FILL;
++      state->cull_mode = rs_state->cull_face;
++   } else if (rs_state->fill_front == PIPE_POLYGON_MODE_POINT &&
+        screen->driver_workarounds.no_hw_gl_point) {
+       state->hw_state.polygon_mode = VK_POLYGON_MODE_FILL;
+       state->cull_mode = VK_CULL_MODE_NONE;
+diff --git a/src/gallium/drivers/zink/zink_types.h b/src/gallium/drivers/zink/zink_types.h
+index c34b9a2..4605457 100644
+--- a/src/gallium/drivers/zink/zink_types.h
++++ b/src/gallium/drivers/zink/zink_types.h
+@@ -302,6 +302,10 @@ struct zink_vertex_elements_hw_state {
+ };
+ 
+ struct zink_vertex_elements_state {
++   /* Retained so the wireframe expansion can read per-vertex edge flags: the
++    * driver state below is Vulkan-only and loses the buffer, offset and stride. */
++   unsigned num_elements;
++   struct pipe_vertex_element elements[PIPE_MAX_ATTRIBS];
+    /* decomposed attributes read only a single component for format compatibility */
+    bool has_decomposed_attrs;
+    struct {
+@@ -957,6 +961,10 @@ struct zink_gfx_push_constant {
+    uint32_t line_stipple_pattern;
+    float viewport_scale[2];
+    float line_width;
++   /* Device address of the transform-feedback buffer, split to stay 4-byte
++    * aligned, for drivers without VK_EXT_transform_feedback. */
++   uint32_t xfb_addr_lo;
++   uint32_t xfb_addr_hi;
+ };
+ 
+ /* The order of the enums MUST match the order of the zink_gfx_push_constant
+@@ -971,6 +979,8 @@ enum zink_gfx_push_constant_member {
+    ZINK_GFX_PUSHCONST_LINE_STIPPLE_PATTERN,
+    ZINK_GFX_PUSHCONST_VIEWPORT_SCALE,
+    ZINK_GFX_PUSHCONST_LINE_WIDTH,
++   ZINK_GFX_PUSHCONST_XFB_ADDR_LO,
++   ZINK_GFX_PUSHCONST_XFB_ADDR_HI,
+    ZINK_GFX_PUSHCONST_MAX
+ };
+ 
+@@ -1552,6 +1562,12 @@ struct zink_screen {
+       bool track_renderpasses;
+       bool no_linestipple;
+       bool no_linesmooth;
++      /* Driver has no fillModeNonSolid: wireframe is emulated by expanding the
++       * draw into an indexed line list. */
++      bool no_hw_gl_wireframe;
++      /* No VK_EXT_transform_feedback: capture the feedback outputs with global
++       * stores instead. */
++      bool emulate_tf;
+       bool no_hw_gl_point;
+       bool can_do_invalid_linear_modifier;
+       bool inconsistent_interpolation;
+@@ -1781,6 +1797,7 @@ enum zink_ds3_state {
+ struct zink_context {
+    struct pipe_context base;
+    struct threaded_context *tc;
++   bool expanding_wireframe;
+    struct slab_child_pool transfer_pool;
+    struct slab_child_pool transfer_pool_unsync;
+    struct blitter_context *blitter;
+diff --git a/src/gallium/targets/dril/dril_target.c b/src/gallium/targets/dril/dril_target.c
+index 339e937..6def40b 100644
+--- a/src/gallium/targets/dril/dril_target.c
++++ b/src/gallium/targets/dril/dril_target.c
+@@ -631,3 +631,7 @@ DEFINE_LOADER_DRM_ENTRYPOINT(zynqmp_dpsub)
+ DEFINE_LOADER_DRM_ENTRYPOINT(lima)
+ DEFINE_LOADER_DRM_ENTRYPOINT(d3d12)
+ DEFINE_LOADER_DRM_ENTRYPOINT(zink)
++
++DEFINE_LOADER_DRM_ENTRYPOINT(sunxi_drm)
++DEFINE_LOADER_DRM_ENTRYPOINT(powervr)
++DEFINE_LOADER_DRM_ENTRYPOINT(pvr)
+diff --git a/src/gallium/targets/dril/meson.build b/src/gallium/targets/dril/meson.build
+index 7cfa982..78eddeb 100644
+--- a/src/gallium/targets/dril/meson.build
++++ b/src/gallium/targets/dril/meson.build
+@@ -55,6 +55,7 @@ dril_dri = shared_library(
+   ],
+   dependencies : [
+     idep_mesautil,
++    driver_kmsro,
+   ],
+   # Will be deleted during installation, see install_megadrivers.py
+   install : true,
+diff --git a/src/gallium/winsys/kmsro/drm/kmsro_drm_winsys.c b/src/gallium/winsys/kmsro/drm/kmsro_drm_winsys.c
+index deb847d..f47a4ab 100644
+--- a/src/gallium/winsys/kmsro/drm/kmsro_drm_winsys.c
++++ b/src/gallium/winsys/kmsro/drm/kmsro_drm_winsys.c
+@@ -1,3 +1,4 @@
++#include <stdio.h>
+ /*
+  * Copyright (C) 2016 Christian Gmeiner <christian.gmeiner@gmail.com>
+  * Copyright (C) 2017 Broadcom
+@@ -33,6 +34,9 @@
+ #include "panfrost/drm/panfrost_drm_public.h"
+ #include "lima/drm/lima_drm_public.h"
+ #include "asahi/drm/asahi_drm_public.h"
++#if defined(GALLIUM_ZINK)
++#include "zink/zink_public.h"
++#endif
+ #include "xf86drm.h"
+ 
+ #include "pipe/p_screen.h"
+@@ -130,6 +134,13 @@ struct pipe_screen *kmsro_drm_screen_create(int kms_fd,
+ 
+       free(render_dev_name);
+ 
++#if defined(GALLIUM_ZINK)
++      if (!screen) {
++         ro->create_for_resource = renderonly_create_kms_dumb_buffer_for_resource;
++         screen = zink_drm_create_screen_renderonly(ro->gpu_fd, ro->kms_fd, config);
++      }
++#endif
++
+       /* test if the screen is actually graphics render capable */
+       if (screen) {
+          if (screen->caps.graphics)
+diff --git a/src/gallium/winsys/kmsro/drm/meson.build b/src/gallium/winsys/kmsro/drm/meson.build
+index cf3d40d..0594a45 100644
+--- a/src/gallium/winsys/kmsro/drm/meson.build
++++ b/src/gallium/winsys/kmsro/drm/meson.build
+@@ -6,7 +6,7 @@ libkmsrowinsys = static_library(
+   files('kmsro_drm_winsys.c'),
+   include_directories : [
+     inc_src, inc_include, inc_loader,
+-    inc_gallium, inc_gallium_aux, inc_gallium_winsys,
++    inc_gallium, inc_gallium_aux, inc_gallium_winsys, inc_gallium_drivers,
+   ],
+   link_with : libloader,
+   c_args : [renderonly_drivers_c_args],
+diff --git a/src/gbm/backends/dri/gbm_dri.c b/src/gbm/backends/dri/gbm_dri.c
+index 316b251..8bce561 100644
+--- a/src/gbm/backends/dri/gbm_dri.c
++++ b/src/gbm/backends/dri/gbm_dri.c
+@@ -243,7 +243,7 @@ dri_screen_create_for_driver(struct gbm_dri_device *dri, char *driver_name, bool
+    bool swrast = driver_name == NULL; /* If it's pure swrast, not just swkms. */
+    enum dri_screen_type type = DRI_SCREEN_SWRAST;
+    if (!swrast) {
+-      if (!strcmp(driver_name, "zink"))
++      if (!strcmp(driver_name, "zink") || !strcmp(driver_name, "powervr") || !strcmp(driver_name, "pvr"))
+          type = DRI_SCREEN_KOPPER;
+       else if (!strcmp(driver_name, "kms_swrast"))
+          type = DRI_SCREEN_KMS_SWRAST;
+@@ -280,6 +280,10 @@ dri_screen_create(struct gbm_dri_device *dri, bool driver_name_is_inferred)
+    driver_name = loader_get_driver_for_fd(dri->base.v0.fd);
+    if (!driver_name)
+       return -1;
++   if (strcmp(driver_name, "sunxi-drm") == 0) {
++      free(driver_name);
++      driver_name = strdup("sun4i-drm");
++   }
+ 
+    return dri_screen_create_for_driver(dri, driver_name, driver_name_is_inferred);
+ }
+diff --git a/src/mesa/state_tracker/st_atom_shader.c b/src/mesa/state_tracker/st_atom_shader.c
+index c1484d3..5c80f3a 100644
+--- a/src/mesa/state_tracker/st_atom_shader.c
++++ b/src/mesa/state_tracker/st_atom_shader.c
+@@ -239,7 +239,8 @@ st_update_vp( struct st_context *st )
+           !st->ctx->TessEvalProgram._Current) {
+          /* _NEW_POINT */
+          if (st->lower_point_size)
+-            key.export_point_size = !st->ctx->VertexProgram.PointSizeEnabled && !st->ctx->PointSizeIsSet;
++            key.export_point_size = (!st->ctx->VertexProgram.PointSizeEnabled && !st->ctx->PointSizeIsSet) ||
++                                    st->ctx->Polygon.FrontMode == GL_POINT;
+          /* _NEW_TRANSFORM */
+          if (st->lower_ucp && st_user_clip_planes_enabled(st->ctx))
+             key.lower_ucp = st->ctx->Transform.ClipPlanesEnabled;
+@@ -296,7 +297,8 @@ st_update_common_program(struct st_context *st, struct gl_program *prog,
+          key.lower_ucp = st->ctx->Transform.ClipPlanesEnabled;
+ 
+       if (st->lower_point_size)
+-         key.export_point_size = !st->ctx->VertexProgram.PointSizeEnabled && !st->ctx->PointSizeIsSet;
++         key.export_point_size = (!st->ctx->VertexProgram.PointSizeEnabled && !st->ctx->PointSizeIsSet) ||
++                                 st->ctx->Polygon.FrontMode == GL_POINT;
+    }
+ 
+    update_gl_clamp(st, prog, key.gl_clamp);

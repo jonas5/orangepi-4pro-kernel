@@ -1991,7 +1991,7 @@
 			};
 			reg_dcdc4: dcdc4 {
 				regulator-name = "axp8191-dcdc4";
-				regulator-min-microvolt = <500000>;
+				regulator-min-microvolt = <990000>;
 				regulator-max-microvolt = <1540000>;
 				regulator-ramp-delay = <250>;
 				regulator-enable-ramp-delay = <1000>;
@@ -3162,6 +3162,9 @@
 
 &gpu  {
 	gpu-supply = <&reg_dcdc4>;
+	clk_rate = <1104000000>;
+	assigned-clocks = <&ccu 3>;
+	assigned-clock-rates = <1032000000>;
 };
 
 &sid {
