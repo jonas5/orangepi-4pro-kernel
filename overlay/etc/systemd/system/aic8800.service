@@ -1,0 +1,12 @@
+[Unit]
+Description=AIC8800 Wi-Fi Bring-Up
+Wants=network-pre.target
+Before=NetworkManager.service network-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/aic8800-start.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
