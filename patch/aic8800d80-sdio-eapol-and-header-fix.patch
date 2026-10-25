@@ -1,0 +1,43 @@
+From: Support <support@orangepi.org>
+Subject: [PATCH] net: wireless: aic8800: fix AIC8800D80 SDIO aggregation header corruption and EAPOL handshake drop
+
+1. In aicwf_sdio_aggr(), preserve sdio_header[0..3] (which contains the 4-byte
+   length and CRC8 calculated upfront for AIC8800D80) instead of overwriting
+   start_ptr[0..1], which invalidates the CRC8 checksum and causes the D80 SDIO
+   firmware to drop outgoing EAPOL Message 2 frames as CRC errors.
+2. In rwnx_tx_push(), bypass setting need_cfm = 1 on SDIO for EAPOL frames
+   (ethertype == 0x8e88) as SDIO microcode does not emit host status confirmations.
+
+Signed-off-by: Support <support@orangepi.org>
+---
+ drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_sdio.c | 6 ++++--
+ drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_tx.c    | 2 +-
+ 2 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_sdio.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_sdio.c
+--- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_sdio.c
++++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/aicwf_sdio.c
+@@ -876,8 +876,10 @@ int aicwf_sdio_aggr(struct aicwf_tx_priv *tx_priv, struct sk_buff *pkt)
+     }
+ 
+-    start_ptr[0] = ((tx_priv->tail - start_ptr - 4) & 0xff);
+-    start_ptr[1] = (((tx_priv->tail - start_ptr - 4)>>8) & 0x0f);
++    /* On AIC8800D80, start_ptr[0..3] contains length and CRC8 and must not be overwritten */
++    if (tx_priv->sdiodev->chipid != PRODUCT_ID_AIC8800D80) {
++        start_ptr[0] = ((tx_priv->tail - start_ptr - 4) & 0xff);
++        start_ptr[1] = (((tx_priv->tail - start_ptr - 4)>>8) & 0x0f);
++    }
+     tx_priv->aggr_buf->dev = pkt->dev;
+ 
+diff --git a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_tx.c b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_tx.c
+--- a/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_tx.c
++++ b/drivers/net/wireless/aic8800/usb/aic8800_fdrv/rwnx_tx.c
+@@ -645,7 +645,7 @@ void rwnx_tx_push(struct rwnx_hw *rwnx_hw, struct rwnx_txhdr *txhdr, int flags)
+ #ifdef  AICWF_SDIO_SUPPORT
+     if( ((sw_txhdr->desc.host.flags & TXU_CNTRL_MGMT) && \
+-	((*(skb->data+sw_txhdr->headroom)==0xd0) || (*(skb->data+sw_txhdr->headroom)==0x10) || (*(skb->data+sw_txhdr->headroom)==0x30))) || \
+-        (sw_txhdr->desc.host.ethertype == 0x8e88) ) { // 0xd0:Action, 0x10:AssocRsp, 0x8e88:EAPOL
++	((*(skb->data+sw_txhdr->headroom)==0xd0) || (*(skb->data+sw_txhdr->headroom)==0x10) || (*(skb->data+sw_txhdr->headroom)==0x30))) ) { // 0xd0:Action, 0x10:AssocRsp
+         sw_txhdr->need_cfm = 1;
+         sw_txhdr->desc.host.status_desc_addr = ((1<<31) | rwnx_hw->sdio_env.txdesc_free_idx[0]);
+--
