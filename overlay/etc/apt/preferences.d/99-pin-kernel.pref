@@ -1,0 +1,9 @@
+# Never install generic Debian mainline/RT kernels on Orange Pi 4 Pro
+Package: linux-image-* linux-headers-*
+Pin: release o=Debian*
+Pin-Priority: -1
+
+# Allow custom Orange Pi vendor packages
+Package: *sun60iw2*
+Pin: release *
+Pin-Priority: 1000

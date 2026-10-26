@@ -165,11 +165,14 @@ index ba1defc61..6a0c021bf 100755
 +cd /usr/src/linux-headers-$version
 +rm -rf scripts/kconfig/conf scripts/basic/fixdep scripts/mod/mk_elfconfig
 +find -name *.o |xargs rm -rf
-+echo "Compiling headers - please wait ..."
-+find -type f -exec touch {} +
-+yes "" | make oldconfig >/dev/null
-+make -j\$(grep -c 'processor' /proc/cpuinfo) -s scripts >/dev/null
-+make -j\$(grep -c 'processor' /proc/cpuinfo) -s M=scripts/mod/ >/dev/null
++echo "Compiling native host scripts for kernel headers ($version)..."
++if which gcc >/dev/null 2>&1 && which make >/dev/null 2>&1; then
++    yes "" | make oldconfig >/dev/null 2>&1 || true
++    make -j\$(grep -c 'processor' /proc/cpuinfo 2>/dev/null || echo 1) -s scripts >/dev/null 2>&1 || true
++    make -j\$(grep -c 'processor' /proc/cpuinfo 2>/dev/null || echo 1) -s M=scripts/mod/ >/dev/null 2>&1 || true
++else
++    echo "Notice: gcc/make not present yet; scripts will compile on first module build."
++fi
 +exit 0
 +EOT
  
@@ -759,7 +762,7 @@ index d4b007b38..58bb281eb 100755
 +
 +Package: $kernel_headers_packagename
 +Architecture: $debarch
-+Depends: make, gcc, libc6-dev, bison, flex, libssl-dev
++Recommends: make, gcc, libc6-dev, bison, flex, libssl-dev
 +Description: Linux kernel headers for $version on $debarch
 + This package provides kernel header files for $version on $debarch
 + .
