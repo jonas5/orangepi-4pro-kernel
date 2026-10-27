@@ -24,7 +24,7 @@ index 74bcb9e7f..3e907ce65 100644
 +intdeb-pkg:
 +	+$(CONFIG_SHELL) $(srctree)/scripts/package/builddeb
 diff --git a/scripts/package/builddeb b/scripts/package/builddeb
-index ba1defc61..6a0c021bf 100755
+index ba1defc61..bf4474a28 100755
 --- a/scripts/package/builddeb
 +++ b/scripts/package/builddeb
 @@ -5,14 +5,12 @@
@@ -47,7 +47,7 @@ index ba1defc61..6a0c021bf 100755
  
  is_enabled() {
  	grep -q "^$1=y" include/config/auto.conf
-@@ -26,151 +24,345 @@ if_enabled_echo() {
+@@ -26,151 +24,347 @@ if_enabled_echo() {
  	fi
  }
  
@@ -157,7 +157,7 @@ index ba1defc61..6a0c021bf 100755
 -		EOF
 -		chmod 755 "${pdir}/DEBIAN/${script}"
 -	done
-+}
+-}
 +	# Create postinst prerm scripts for headers
 +	if [ "$3" = "headers" ]; then
 +
@@ -520,7 +520,7 @@ index ba1defc61..6a0c021bf 100755
 +
 +exit 0
 diff --git a/scripts/package/mkdebian b/scripts/package/mkdebian
-index d4b007b38..58bb281eb 100755
+index d4b007b38..0aa5481c2 100755
 --- a/scripts/package/mkdebian
 +++ b/scripts/package/mkdebian
 @@ -4,7 +4,7 @@
