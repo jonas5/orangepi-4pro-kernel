@@ -75,33 +75,76 @@ To enable clean, reproducible builds in GitHub Actions workflows without bundlin
 
 ---
 
-## 4. Building with GitHub Actions
+## 4. Multi-Distribution & Flavour Support
 
-### Workflow 1: Daily Build & Release (`daily.yml`)
-The unified daily pipeline builds bootable SD card images for your choice of Linux distribution:
-- Go to the **Actions** tab in GitHub.
-- Select **Daily Build & Release**.
-- Click **Run workflow** and choose your target distribution:
-  - **`bookworm`**: Debian 12 Bookworm (minimal / server / desktop)
-  - **`trixie`**: Debian 13 Trixie (minimal)
-  - **`arch`**: **Arch Linux ARM (ALARM)** rolling-release aarch64 image
-- Downloads the resulting `.img.xz` artifact or grabs it directly from GitHub Releases.
+This repository supports building the full stack of **Ubuntu**, **Debian**, and **Arch Linux ARM** releases across **Minimal**, **Server**, and **Desktop (XFCE, GNOME, MATE)** flavours:
 
-#### Default Credentials Across Distributions:
-- **Arch Linux ARM (`arch`)**: User `alarm` / `alarm` (sudo), Root `root` / `root`
-- **Debian (`bookworm` / `trixie`)**: User `orangepi` / `orangepi`, Root `root` / `orangepi`
+### Supported Operating System Matrix:
 
-### Workflow 2: Cross-compile Kernel & Modules (`daily-trixie.yml` / CI)
-- Cross-compiles `Image`, DTBs, and packages standalone Debian kernel DEBs (`linux-image`, `linux-headers`, `linux-dtb`).
+| Distribution Family | Release / Suite | Codename & Lifecycle | Supported Flavours |
+| :--- | :--- | :--- | :--- |
+| **Ubuntu** | `noble` | **Ubuntu 24.04 LTS (Noble Numbat)** | `minimal`, `server`, `desktop-xfce`, `desktop-gnome` |
+| **Ubuntu** | `jammy` | **Ubuntu 22.04 LTS (Jammy Jellyfish)** | `minimal`, `server`, `desktop-xfce`, `desktop-gnome` |
+| **Ubuntu** | `focal` | **Ubuntu 20.04 LTS (Focal Fossa)** | `minimal`, `server`, `desktop-xfce`, `desktop-gnome` |
+| **Debian** | `bookworm` | **Debian 12 (Bookworm) — Stable** | `minimal`, `server`, `desktop-xfce`, `desktop-gnome`, `desktop-mate` |
+| **Debian** | `trixie` | **Debian 13 (Trixie) — Testing** | `minimal`, `server`, `desktop-xfce`, `desktop-gnome`, `desktop-mate` |
+| **Debian** | `bullseye` | **Debian 11 (Bullseye) — Oldstable** | `minimal`, `server`, `desktop-xfce`, `desktop-gnome`, `desktop-mate` |
+| **Debian** | `sid` | **Debian Unstable (Sid) — Rolling** | `minimal`, `server`, `desktop-xfce`, `desktop-gnome` |
+| **Arch Linux** | `arch` | **Arch Linux ARM (ALARM) — Rolling** | `minimal` / full `pacman` base |
 
 ---
 
-## 5. Local Build Instructions
+### Flavour Profiles & Editions:
+- **`minimal`**: Minimal headless CLI server (ultra-lightweight, small storage footprint, fast boot time).
+- **`server`**: Standard headless server with full diagnostics, networking tools, and Docker readiness.
+- **`desktop-xfce`**: Highly responsive XFCE desktop environment (**SBC community favorite**).
+- **`desktop-gnome`**: Full GNOME Wayland desktop environment with native hardware compositing.
+- **`desktop-mate`**: Classic, traditional MATE desktop environment (available for Debian).
 
-### Building Arch Linux ARM SD Card Image Locally:
+### Default Credentials:
+| Distribution Family | Default User | Default Password | Root Login |
+| :--- | :--- | :--- | :--- |
+| **Ubuntu (`noble`, `jammy`, `focal`)** | `orangepi` | `orangepi` (sudo) | `root` / `orangepi` |
+| **Debian (`bookworm`, `trixie`, `bullseye`)** | `orangepi` | `orangepi` (sudo) | `root` / `orangepi` |
+| **Arch Linux ARM (`arch`)** | `alarm` | `alarm` (sudo) | `root` / `root` |
+
+---
+
+## 5. Building with GitHub Actions CI
+
+The unified daily pipeline (`.github/workflows/daily.yml`) supports on-demand builds for any distribution and flavour:
+
+1. Open this repository on GitHub.
+2. Go to the **Actions** tab.
+3. In the left sidebar, select **Daily Build & Release**.
+4. Click **Run workflow**:
+   - Choose your **Target Distribution & Release** (`noble`, `bookworm`, `jammy`, `trixie`, `arch`, etc.).
+   - Choose your **Flavour / Edition** (`minimal`, `server`, `desktop-xfce`, `desktop-gnome`, `desktop-mate`).
+   - Click **Run workflow**.
+5. Once complete, your bootable `.img.xz` image, kernel packages, and checksums will be published to the GitHub Releases tab and workflow artifacts.
+
+---
+
+## 6. Local Build Instructions
+
+### Using the Unified Local Image Builder (`scripts/build-os-image.sh`):
+You can build any Ubuntu, Debian, or Arch Linux image directly on your local machine:
+
 ```bash
-# Build bootable Arch Linux ARM .img.xz using local script:
-sudo bash scripts/build-arch-image.sh
+# 1. Build Ubuntu 24.04 LTS (Noble) with XFCE Desktop:
+sudo bash scripts/build-os-image.sh noble desktop-xfce
+
+# 2. Build Ubuntu 24.04 LTS (Noble) Minimal Headless Server:
+sudo bash scripts/build-os-image.sh noble minimal
+
+# 3. Build Debian 12 (Bookworm) with GNOME Desktop:
+sudo bash scripts/build-os-image.sh bookworm desktop-gnome
+
+# 4. Build Debian 12 (Bookworm) Standard Server:
+sudo bash scripts/build-os-image.sh bookworm server
+
+# 5. Build Arch Linux ARM Rolling SD Image:
+sudo bash scripts/build-os-image.sh arch
 ```
 
 ### Cross-compiling the Kernel Manually:

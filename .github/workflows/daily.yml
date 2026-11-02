@@ -7,23 +7,30 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: 'Target OS distribution'
+        description: 'Target Distribution & Release'
         required: true
-        default: 'bookworm'
+        default: 'noble'
         type: choice
         options:
+          - noble
+          - jammy
+          - focal
           - bookworm
           - trixie
+          - bullseye
+          - sid
           - arch
-      build_type:
-        description: 'Build Type'
+      flavour:
+        description: 'Flavour / Edition'
         required: true
         default: 'minimal'
         type: choice
         options:
           - minimal
           - server
-          - desktop
+          - desktop-xfce
+          - desktop-gnome
+          - desktop-mate
       tag_name:
         description: 'Custom release tag (leave empty for daily / tag trigger)'
         required: false
@@ -53,7 +60,7 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build & Release Orange Pi 4 Pro Image
+    name: Build & Release Orange Pi 4 Pro OS Image
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -90,7 +97,7 @@ jobs:
       - name: Apply Orange Pi 4 Pro A733 patches and configuration
         if: github.event.inputs.reuse_run_id == ''
         run: |
-          # Apply orangepi-build harness patch (enables 6.18 next branch & u-boot packing)
+          # Apply orangepi-build harness patch
           git -C orangepi-build apply ../patch/orangepi-build.patch
 
           # Copy unified mainline kernel patch & builddeb packaging patch
@@ -106,19 +113,46 @@ jobs:
           mkdir -p orangepi-build/external/packages/bsp/common
           cp -rv overlay/* orangepi-build/external/packages/bsp/common/
 
-      - name: Build SD Image (Debian Bookworm / Trixie)
+      - name: Build SD Image (Ubuntu / Debian Stack)
         if: github.event.inputs.reuse_run_id == '' && github.event.inputs.release != 'arch'
         run: |
-          BUILD_DESKTOP="no"
-          BUILD_MINIMAL="yes"
-          if [ "${{ github.event.inputs.build_type }}" = "desktop" ]; then
-            BUILD_DESKTOP="yes"
-            BUILD_MINIMAL="no"
-          fi
-
           RELEASE="${{ github.event.inputs.release }}"
-          [ -z "$RELEASE" ] && RELEASE="bookworm"
+          [ -z "$RELEASE" ] && RELEASE="noble"
 
+          FLAVOUR="${{ github.event.inputs.flavour }}"
+          [ -z "$FLAVOUR" ] && FLAVOUR="minimal"
+
+          BUILD_MINIMAL="no"
+          BUILD_DESKTOP="no"
+          DESKTOP_ENV_ARGS=""
+
+          case "$FLAVOUR" in
+            minimal)
+              BUILD_MINIMAL="yes"
+              BUILD_DESKTOP="no"
+              ;;
+            server)
+              BUILD_MINIMAL="no"
+              BUILD_DESKTOP="no"
+              ;;
+            desktop-xfce)
+              BUILD_MINIMAL="no"
+              BUILD_DESKTOP="yes"
+              DESKTOP_ENV_ARGS="DESKTOP_ENVIRONMENT=xfce DESKTOP_ENVIRONMENT_CONFIG_NAME=config_base DESKTOP_APPGROUPS_SELECTED="
+              ;;
+            desktop-gnome)
+              BUILD_MINIMAL="no"
+              BUILD_DESKTOP="yes"
+              DESKTOP_ENV_ARGS="DESKTOP_ENVIRONMENT=gnome DESKTOP_ENVIRONMENT_CONFIG_NAME=config_base DESKTOP_APPGROUPS_SELECTED="
+              ;;
+            desktop-mate)
+              BUILD_MINIMAL="no"
+              BUILD_DESKTOP="yes"
+              DESKTOP_ENV_ARGS="DESKTOP_ENVIRONMENT=mate DESKTOP_ENVIRONMENT_CONFIG_NAME=config_base DESKTOP_APPGROUPS_SELECTED="
+              ;;
+          esac
+
+          echo "=== Building Image: Release=$RELEASE, Flavour=$FLAVOUR ==="
           cd orangepi-build
           sudo ./build.sh \
             BOARD=orangepi4pro \
@@ -126,14 +160,13 @@ jobs:
             BUILD_OPT=image \
             RELEASE=${RELEASE} \
             BUILD_MINIMAL=${BUILD_MINIMAL} \
-            BUILD_DESKTOP=${BUILD_DESKTOP}
+            BUILD_DESKTOP=${BUILD_DESKTOP} \
+            ${DESKTOP_ENV_ARGS}
 
       - name: Build SD Image (Arch Linux ARM)
         if: github.event.inputs.reuse_run_id == '' && github.event.inputs.release == 'arch'
         run: |
           echo "=== Building Arch Linux ARM Rolling Image for Orange Pi 4 Pro ==="
-          
-          # First compile kernel, DTBs, and modules using orangepi-build
           cd orangepi-build
           sudo ./build.sh \
             BOARD=orangepi4pro \
@@ -142,7 +175,6 @@ jobs:
             KERNEL_CONFIGURE=no
           cd ..
 
-          # Assemble Arch Linux image
           mkdir -p arch_work
           cd arch_work
           TARGET_IMG="orangepi4pro-archlinux-arm64.img"
@@ -163,7 +195,7 @@ jobs:
           curl -L -o ArchLinuxARM-aarch64-latest.tar.gz "http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"
           sudo bsdtar -xpf ArchLinuxARM-aarch64-latest.tar.gz -C rootfs
 
-          echo "[*] Copying bootloader and Device Tree..."
+          echo "[*] Installing bootloader and Device Tree..."
           sudo mkdir -p rootfs/boot/allwinner rootfs/boot/dtb/allwinner
           [ -f ../boot/boot.scr ] && sudo cp -v ../boot/boot.scr rootfs/boot/
           [ -f ../boot/boot.cmd ] && sudo cp -v ../boot/boot.cmd rootfs/boot/
@@ -171,7 +203,6 @@ jobs:
           [ -f ../dts/sun60i-a733-orangepi-4-pro.dtb ] && sudo cp -v ../dts/sun60i-a733-orangepi-4-pro.dtb rootfs/boot/allwinner/
           [ -f ../dts/sun60i-a733-orangepi-4-pro.dtb ] && sudo cp -v ../dts/sun60i-a733-orangepi-4-pro.dtb rootfs/boot/dtb/allwinner/
 
-          # Install kernel Image and modules from orangepi-build
           K_IMG=$(find ../orangepi-build/ -type f -name "Image" | head -1)
           if [ -n "$K_IMG" ] && [ -f "$K_IMG" ]; then
             sudo cp -v "$K_IMG" rootfs/boot/Image
@@ -259,45 +290,67 @@ jobs:
           DATE_TAG=$(date -u +'%Y%m%d')
           DATE_STR=$(date -u +'%Y-%m-%d')
           DISTRO="${{ github.event.inputs.release }}"
-          [ -z "$DISTRO" ] && DISTRO="bookworm"
+          [ -z "$DISTRO" ] && DISTRO="noble"
+          FLAVOUR="${{ github.event.inputs.flavour }}"
+          [ -z "$FLAVOUR" ] && FLAVOUR="minimal"
 
-          # Determine target tag and title
+          # Format distribution friendly name
+          case "$DISTRO" in
+            noble)    DISTRO_NAME="Ubuntu 24.04 LTS (Noble Numbat)" ;;
+            jammy)    DISTRO_NAME="Ubuntu 22.04 LTS (Jammy Jellyfish)" ;;
+            focal)    DISTRO_NAME="Ubuntu 20.04 LTS (Focal Fossa)" ;;
+            bookworm) DISTRO_NAME="Debian 12 (Bookworm)" ;;
+            trixie)   DISTRO_NAME="Debian 13 (Trixie)" ;;
+            bullseye) DISTRO_NAME="Debian 11 (Bullseye)" ;;
+            sid)      DISTRO_NAME="Debian Unstable (Sid)" ;;
+            arch)     DISTRO_NAME="Arch Linux ARM (Rolling)" ;;
+            *)        DISTRO_NAME="${DISTRO^^}" ;;
+          esac
+
           if [ -n "${{ github.event.inputs.tag_name }}" ]; then
             TAG="${{ github.event.inputs.tag_name }}"
-            TITLE="Orange Pi 4 Pro ${DISTRO^^} (${TAG})"
+            TITLE="Orange Pi 4 Pro: ${DISTRO_NAME} - ${FLAVOUR^^} (${TAG})"
             PRERELEASE_FLAG=""
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             TAG="${GITHUB_REF_NAME}"
-            TITLE="Orange Pi 4 Pro ${DISTRO^^} (${TAG})"
+            TITLE="Orange Pi 4 Pro: ${DISTRO_NAME} - ${FLAVOUR^^} (${TAG})"
             PRERELEASE_FLAG=""
           else
             TAG="daily"
-            TITLE="Orange Pi 4 Pro ${DISTRO^^} (Daily Build - ${DATE_STR})"
+            TITLE="Orange Pi 4 Pro: ${DISTRO_NAME} - ${FLAVOUR^^} (Daily Build - ${DATE_STR})"
             PRERELEASE_FLAG="--prerelease"
           fi
 
           cat << EOF > release_notes.md
           ## Orange Pi 4 Pro (Allwinner A733 / sun60iw2)
 
-          **Release**: ${TITLE}
+          **Release Title**: ${TITLE}
           **Target SoC**: Allwinner A733 (\`sun60iw2\`)
           **Kernel**: Mainline Linux 6.18.y (\`linux-6.18.y\`)
-          **Distribution**: ${DISTRO}
+          **Distribution**: ${DISTRO_NAME}
+          **Flavour / Profile**: ${FLAVOUR}
           **Build Date**: ${DATE_STR}
 
-          ### Default Credentials
-          - **Arch Linux ARM**: User \`alarm\` / \`alarm\` (sudo), Root \`root\` / \`root\`
-          - **Debian (Bookworm / Trixie)**: User \`orangepi\` / \`orangepi\`, Root \`root\` / \`orangepi\`
+          ### Default Credentials:
+          - **Ubuntu (\`noble\`, \`jammy\`, \`focal\`)**: User \`orangepi\` / \`orangepi\` (sudo), Root \`root\` / \`orangepi\`
+          - **Debian (\`bookworm\`, \`trixie\`, \`bullseye\`)**: User \`orangepi\` / \`orangepi\` (sudo), Root \`root\` / \`orangepi\`
+          - **Arch Linux ARM (\`arch\`)**: User \`alarm\` / \`alarm\` (sudo), Root \`root\` / \`root\`
 
-          ### Features
-          - Modularized peripheral drivers (network, GPU, Wi-Fi, BT) as on-demand modules (\`=m\`)
-          - Out-of-tree drivers excluded from kernel image; proprietary drivers decoupled into standalone packages
-          - \`cma=256M\` allocation and suspend/sleep targets permanently disabled for headless 24/7 stability
+          ### Flavour Profiles:
+          - **\`minimal\`**: Minimal headless server, fast boot, lightweight base footprint
+          - **\`server\`**: Standard headless server with full diagnostics, networking, and Docker readiness
+          - **\`desktop-xfce\`**: Highly responsive XFCE desktop environment (SBC community favorite)
+          - **\`desktop-gnome\`**: Full GNOME Wayland desktop environment with Mutter/Zink hardware compositing
+          - **\`desktop-mate\`**: Classic MATE desktop environment (available for Debian)
+
+          ### Hardware Architecture:
+          - Modularized peripheral drivers (Ethernet, GPU, Wi-Fi 6, BT) as on-demand modules (\`=m\`)
+          - Out-of-tree drivers excluded from base image; proprietary hardware acceleration available via \`orangepi-config\`
+          - \`cma=256M\` allocation and suspend/sleep targets permanently disabled for 24/7 server stability
           - Unified mainline device tree aliases with root disk locked to \`/dev/mmcblk0p1\`
-          - Pre-packaged Debian kernel debs (\`linux-image\`, \`linux-headers\`, \`linux-dtb\`)
 
-          ### Verification
-          Checksums are provided in \`SHA256SUMS\` and matching \`.sha256\` files for each asset.
+          ### Verification:
+          Integrity checksums are provided in \`SHA256SUMS\` and matching \`.sha256\` files for each asset.
           EOF
           sed -i 's/^[[:space:]]*//' release_notes.md
 
