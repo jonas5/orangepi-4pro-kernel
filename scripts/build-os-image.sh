@@ -36,6 +36,10 @@ fi
 RELEASE="${1:-noble}"
 FLAVOUR="${2:-minimal}"
 
+# Bypass host OS checks on non-Ubuntu hosts (e.g. Debian 13 Trixie)
+export NO_HOST_RELEASE_CHECK=yes
+export EXPERT=yes
+
 echo "========================================================================"
 echo "  Orange Pi 4 Pro (A733 / Linux 6.18) OS Image Builder"
 echo "  Distribution: ${RELEASE} | Flavour: ${FLAVOUR}"
@@ -122,6 +126,8 @@ cd "${HARNESS_DIR}"
     RELEASE="${RELEASE}" \
     BUILD_MINIMAL="${BUILD_MINIMAL}" \
     BUILD_DESKTOP="${BUILD_DESKTOP}" \
+    NO_HOST_RELEASE_CHECK=yes \
+    EXPERT=yes \
     ${DESKTOP_ENV_ARGS[@]+"${DESKTOP_ENV_ARGS[@]}"}
 
 echo "========================================================================"

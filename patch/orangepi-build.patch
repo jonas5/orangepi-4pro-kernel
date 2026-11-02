@@ -211,3 +211,17 @@ index 59c4f9c..7e6a617 100755
  	[[ $(type -t family_tweaks_kernel) == function ]] && family_tweaks_kernel
  
  	# store git hash to the file and create a change log
+
+diff --git a/scripts/general.sh b/scripts/general.sh
+index b6df344..3049a42 100755
+--- a/scripts/general.sh
++++ b/scripts/general.sh
+@@ -1475,7 +1475,7 @@ prepare_host()
+ 	#
+ 	# NO_HOST_RELEASE_CHECK overrides the check for a supported host system
+ 	# Disable host OS check at your own risk. Any issues reported with unsupported releases will be closed without discussion
+-	if [[ -z  || "focal jammy noble" != *""* ]]; then
++	if [[ -z  || "focal jammy noble trixie bookworm" != *""* ]]; then
+ 		if [[  == yes ]]; then
+ 			display_alert "You are running on an unsupported system" "(unknown)" "wrn"
+ 			display_alert "Do not report any errors, warnings or other issues encountered beyond this point" "" "wrn"
