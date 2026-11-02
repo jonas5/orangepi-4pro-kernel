@@ -77,19 +77,32 @@ To enable clean, reproducible builds in GitHub Actions workflows without bundlin
 
 ## 4. Building with GitHub Actions
 
-### Workflow 1: Build Debian Bookworm SD Image (`build-image.yml`)
+### Workflow 1: Daily Build & Release (`daily.yml`)
+The unified daily pipeline builds bootable SD card images for your choice of Linux distribution:
 - Go to the **Actions** tab in GitHub.
-- Select **Build Orange Pi 4 Pro Debian Bookworm Image**.
-- Click **Run workflow** (select `bookworm` and `minimal` or `desktop`).
-- Downloads the resulting `orangepi4pro-bookworm-image.img.xz` artifact once complete.
+- Select **Daily Build & Release**.
+- Click **Run workflow** and choose your target distribution:
+  - **`bookworm`**: Debian 12 Bookworm (minimal / server / desktop)
+  - **`trixie`**: Debian 13 Trixie (minimal)
+  - **`arch`**: **Arch Linux ARM (ALARM)** rolling-release aarch64 image
+- Downloads the resulting `.img.xz` artifact or grabs it directly from GitHub Releases.
 
-### Workflow 2: Cross-compile Kernel & Modules (`build-kernel.yml`)
-- Trigger **Build Mainline 6.18 Kernel for Orange Pi 4 Pro**.
-- Builds `Image`, `uImage`, DTBs, and `modules_6.18.y.tar.gz`.
+#### Default Credentials Across Distributions:
+- **Arch Linux ARM (`arch`)**: User `alarm` / `alarm` (sudo), Root `root` / `root`
+- **Debian (`bookworm` / `trixie`)**: User `orangepi` / `orangepi`, Root `root` / `orangepi`
+
+### Workflow 2: Cross-compile Kernel & Modules (`daily-trixie.yml` / CI)
+- Cross-compiles `Image`, DTBs, and packages standalone Debian kernel DEBs (`linux-image`, `linux-headers`, `linux-dtb`).
 
 ---
 
 ## 5. Local Build Instructions
+
+### Building Arch Linux ARM SD Card Image Locally:
+```bash
+# Build bootable Arch Linux ARM .img.xz using local script:
+sudo bash scripts/build-arch-image.sh
+```
 
 ### Cross-compiling the Kernel Manually:
 ```bash

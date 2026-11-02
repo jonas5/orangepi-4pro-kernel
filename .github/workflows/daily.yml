@@ -7,13 +7,14 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: 'Debian release'
+        description: 'Target OS distribution'
         required: true
         default: 'bookworm'
         type: choice
         options:
           - bookworm
           - trixie
+          - arch
       build_type:
         description: 'Build Type'
         required: true
@@ -28,7 +29,7 @@ on:
         required: false
         default: ''
       reuse_run_id:
-        description: 'Optional: Existing run ID to release (skips 20-min rebuild)'
+        description: 'Optional: Existing run ID to release (skips rebuild)'
         required: false
         default: ''
       publish_release:
@@ -52,7 +53,7 @@ permissions:
 
 jobs:
   build-and-release:
-    name: Build & Release Orange Pi 4 Pro Debian Image
+    name: Build & Release Orange Pi 4 Pro Image
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -79,7 +80,7 @@ jobs:
             bison flex bc libssl-dev libncurses-dev libelf-dev \
             debootstrap qemu-user-static binfmt-support u-boot-tools rsync cpio \
             kmod parted dosfstools fdisk xz-utils curl wget zstd pigz python3 \
-            device-tree-compiler dialog lzop libyaml-dev pkg-config
+            device-tree-compiler dialog lzop libyaml-dev pkg-config libarchive-tools
 
       - name: Clone build harness
         if: github.event.inputs.reuse_run_id == ''
@@ -105,8 +106,8 @@ jobs:
           mkdir -p orangepi-build/external/packages/bsp/common
           cp -rv overlay/* orangepi-build/external/packages/bsp/common/
 
-      - name: Build SD Image via orangepi-build
-        if: github.event.inputs.reuse_run_id == ''
+      - name: Build SD Image (Debian Bookworm / Trixie)
+        if: github.event.inputs.reuse_run_id == '' && github.event.inputs.release != 'arch'
         run: |
           BUILD_DESKTOP="no"
           BUILD_MINIMAL="yes"
@@ -126,6 +127,66 @@ jobs:
             RELEASE=${RELEASE} \
             BUILD_MINIMAL=${BUILD_MINIMAL} \
             BUILD_DESKTOP=${BUILD_DESKTOP}
+
+      - name: Build SD Image (Arch Linux ARM)
+        if: github.event.inputs.reuse_run_id == '' && github.event.inputs.release == 'arch'
+        run: |
+          echo "=== Building Arch Linux ARM Rolling Image for Orange Pi 4 Pro ==="
+          
+          # First compile kernel, DTBs, and modules using orangepi-build
+          cd orangepi-build
+          sudo ./build.sh \
+            BOARD=orangepi4pro \
+            BRANCH=next \
+            BUILD_OPT=kernel \
+            KERNEL_CONFIGURE=no
+          cd ..
+
+          # Assemble Arch Linux image
+          mkdir -p arch_work
+          cd arch_work
+          TARGET_IMG="orangepi4pro-archlinux-arm64.img"
+          truncate -s 4800M "$TARGET_IMG"
+
+          parted -s "$TARGET_IMG" mklabel msdos
+          parted -s "$TARGET_IMG" mkpart primary ext4 2048s 100%
+          parted -s "$TARGET_IMG" set 1 boot on
+
+          LOOP_DEV=$(sudo losetup -fP --show "$TARGET_IMG")
+          ROOT_PART="${LOOP_DEV}p1"
+
+          sudo mkfs.ext4 -F -L "ALARM_ROOT" -b 4096 "$ROOT_PART"
+          mkdir -p rootfs
+          sudo mount "$ROOT_PART" rootfs
+
+          echo "[*] Downloading official Arch Linux ARM rootfs..."
+          curl -L -o ArchLinuxARM-aarch64-latest.tar.gz "http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"
+          sudo bsdtar -xpf ArchLinuxARM-aarch64-latest.tar.gz -C rootfs
+
+          echo "[*] Copying bootloader and Device Tree..."
+          sudo mkdir -p rootfs/boot/allwinner rootfs/boot/dtb/allwinner
+          [ -f ../boot/boot.scr ] && sudo cp -v ../boot/boot.scr rootfs/boot/
+          [ -f ../boot/boot.cmd ] && sudo cp -v ../boot/boot.cmd rootfs/boot/
+          [ -f ../boot/orangepiEnv.txt ] && sudo cp -v ../boot/orangepiEnv.txt rootfs/boot/
+          [ -f ../dts/sun60i-a733-orangepi-4-pro.dtb ] && sudo cp -v ../dts/sun60i-a733-orangepi-4-pro.dtb rootfs/boot/allwinner/
+          [ -f ../dts/sun60i-a733-orangepi-4-pro.dtb ] && sudo cp -v ../dts/sun60i-a733-orangepi-4-pro.dtb rootfs/boot/dtb/allwinner/
+
+          # Install kernel Image and modules from orangepi-build
+          K_IMG=$(find ../orangepi-build/ -type f -name "Image" | head -1)
+          if [ -n "$K_IMG" ] && [ -f "$K_IMG" ]; then
+            sudo cp -v "$K_IMG" rootfs/boot/Image
+          fi
+
+          echo "archlinux-orangepi4pro" | sudo tee rootfs/etc/hostname
+          sudo cp -rv ../overlay/* rootfs/ 2>/dev/null || true
+
+          sudo sync
+          sudo umount -lf rootfs
+          sudo losetup -d "$LOOP_DEV"
+
+          mkdir -p ../orangepi-build/output/images/
+          mv "$TARGET_IMG" ../orangepi-build/output/images/
+          cd ..
 
       - name: Package artifacts
         if: github.event.inputs.reuse_run_id == ''
@@ -174,7 +235,7 @@ jobs:
         if: github.event.inputs.reuse_run_id == ''
         uses: actions/upload-artifact@v4
         with:
-          name: orangepi4pro-bookworm-image
+          name: orangepi4pro-os-image
           path: release_artifacts/*
           if-no-files-found: error
 
@@ -186,10 +247,8 @@ jobs:
           mkdir -p release_artifacts
           echo "Downloading artifacts from run ID: ${{ github.event.inputs.reuse_run_id }}"
           gh run download "${{ github.event.inputs.reuse_run_id }}" --dir release_artifacts/
-          # Flatten any nested subdirectories created by gh run download
           find release_artifacts/ -mindepth 2 -type f -exec mv -t release_artifacts/ {} +
           find release_artifacts/ -mindepth 1 -type d -exec rm -rf {} +
-          echo "Assets ready for release:"
           ls -lh release_artifacts/
 
       - name: Publish GitHub Release
@@ -199,20 +258,21 @@ jobs:
         run: |
           DATE_TAG=$(date -u +'%Y%m%d')
           DATE_STR=$(date -u +'%Y-%m-%d')
+          DISTRO="${{ github.event.inputs.release }}"
+          [ -z "$DISTRO" ] && DISTRO="bookworm"
 
           # Determine target tag and title
           if [ -n "${{ github.event.inputs.tag_name }}" ]; then
             TAG="${{ github.event.inputs.tag_name }}"
-            TITLE="Orange Pi 4 Pro Debian Bookworm (${TAG})"
+            TITLE="Orange Pi 4 Pro ${DISTRO^^} (${TAG})"
             PRERELEASE_FLAG=""
           elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
             TAG="${GITHUB_REF_NAME}"
-            TITLE="Orange Pi 4 Pro Debian Bookworm (${TAG})"
+            TITLE="Orange Pi 4 Pro ${DISTRO^^} (${TAG})"
             PRERELEASE_FLAG=""
           else
-            # Daily build rolling release
             TAG="daily"
-            TITLE="Orange Pi 4 Pro Debian Bookworm (Daily Build - ${DATE_STR})"
+            TITLE="Orange Pi 4 Pro ${DISTRO^^} (Daily Build - ${DATE_STR})"
             PRERELEASE_FLAG="--prerelease"
           fi
 
@@ -222,8 +282,12 @@ jobs:
           **Release**: ${TITLE}
           **Target SoC**: Allwinner A733 (\`sun60iw2\`)
           **Kernel**: Mainline Linux 6.18.y (\`linux-6.18.y\`)
-          **Distribution**: Debian 12 Bookworm (minimal)
+          **Distribution**: ${DISTRO}
           **Build Date**: ${DATE_STR}
+
+          ### Default Credentials
+          - **Arch Linux ARM**: User \`alarm\` / \`alarm\` (sudo), Root \`root\` / \`root\`
+          - **Debian (Bookworm / Trixie)**: User \`orangepi\` / \`orangepi\`, Root \`root\` / \`orangepi\`
 
           ### Features
           - Modularized peripheral drivers (network, GPU, Wi-Fi, BT) as on-demand modules (\`=m\`)
