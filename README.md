@@ -18,18 +18,39 @@ This repository provides the working mainline Linux **6.18.y** kernel baseline, 
 | **Power Mgmt** | Desktop / GDM3 / Systemd | **Working** | Sleep & suspend targets permanently masked for 24/7 SBC server operation |
 
 > **Hardware Acceleration Driver Licenses:**  
-> The core Linux kernel and base Debian 12 Bookworm SD card images are 100% open source. Hardware acceleration modules (PowerVR Rogue GPU Vulkan 1.2 stack and AIC8800 Wi-Fi 6 / Bluetooth 5.4 FullMAC drivers) are maintained out-of-tree. Driver licenses can be grabbed below:  
+> The core Linux kernel and base Debian/Ubuntu SD card images are 100% open source. Hardware acceleration modules (PowerVR Rogue GPU Vulkan 1.2 stack and AIC8800 Wi-Fi 6 / Bluetooth 5.4 FullMAC drivers) are maintained out-of-tree. Driver licenses can be grabbed below:  
 >  
 > <a href="https://buymeacoffee.com/jonas5/e/588598" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="46" style="height: 46px !important;"></a>
 
 ---
 
-## 2. Design Principles: Modular Base Image
+## 2. Default Login Passwords & System Credentials
+
+All generated OS images come with pre-configured default credentials and automatic first-boot root filesystem expansion:
+
+| Distribution Family | Release Suites | Default User | User Password | Root Username | Root Password | Sudo Privileges |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Ubuntu** | `noble` (24.04), `jammy` (22.04), `focal` (20.04) | `orangepi` | **`orangepi`** | `root` | **`orangepi`** | Full sudo access (`ALL=(ALL:ALL) ALL`) |
+| **Debian** | `bookworm` (12), `trixie` (13), `bullseye` (11), `sid` | `orangepi` | **`orangepi`** | `root` | **`orangepi`** | Full sudo access (`ALL=(ALL:ALL) ALL`) |
+| **Arch Linux ARM** | `arch` (Rolling aarch64 base) | `alarm` | **`alarm`** | `root` | **`root`** | Sudo enabled for `alarm` |
+
+### Connection & Console Settings:
+* **Serial Debug Console**: Connect via USB-to-UART adapter to the onboard UART0 pins (Header pins: GND, TX, RX) at **`115200` baud**, `8N1` (`ttyS0`).
+* **SSH Remote Access**: Pre-enabled on port **`22`** across all images (host keys generated automatically on first boot).
+* **Automatic Storage Expansion**: On first boot, the system automatically runs `growpart` and `resize2fs` to expand the root partition (`/dev/mmcblk0p1`) to claim 100% of your MicroSD card capacity.
+
+> **Related Appliance Projects & Credentials:**
+> - **Kali Linux Rolling**: [`jonas5/orangepi-4pro-kali`](https://github.com/jonas5/orangepi-4pro-kali) — User: `kali` / `kali` (Root: `root` / `toor`)
+> - **LibreELEC (Kodi 21)**: [`jonas5/orangepi-4pro-libreelec`](https://github.com/jonas5/orangepi-4pro-libreelec) — Root: `root` / `libreelec`
+
+---
+
+## 3. Design Principles: Modular Base Image
 
 To enable clean, reproducible builds in GitHub Actions workflows without bundling out-of-tree or vendor drivers into the kernel image:
 
 1. **Clean Kernel Image (`Image`)**:
-   Only the essential components required to boot straight into a Debian Bookworm root shell are built into the kernel (`=y`):
+   Only the essential components required to boot straight into a clean root shell are built into the kernel (`=y`):
    - Core CPU architecture, timers, GICv3 interrupt controller
    - SoC clock tree (`sun60iw2-ccu`), resets, and pinctrl
    - Power domain controller (`allwinner,sun60i-a733-pck-600`)
@@ -50,13 +71,14 @@ To enable clean, reproducible builds in GitHub Actions workflows without bundlin
 
 ---
 
-## 3. Repository Structure
+## 4. Repository Structure
 
 ```text
 ├── .github/
 │   └── workflows/
-│       ├── build-kernel.yml      # CI workflow: cross-compiles 6.18 kernel, DTBs & modules
-│       └── build-image.yml       # CI workflow: builds bootable Debian Bookworm SD image (.img.xz)
+│       ├── daily.yml             # Unified daily CI workflow (Ubuntu, Debian, Arch Linux)
+│       ├── daily-trixie.yml      # Debian 13 Trixie automated build pipeline
+│       └── cleanup-runs.yml      # CI workflow maintenance helper
 ├── boot/
 │   ├── boot.cmd                  # U-Boot boot script source
 │   ├── boot.scr                  # Compiled U-Boot script
@@ -68,14 +90,20 @@ To enable clean, reproducible builds in GitHub Actions workflows without bundlin
 │   ├── sun60iw2p1.dtsi                 # SoC device tree
 │   ├── sun60iw2p1-cpu-vf.dtsi          # CPU voltage-frequency table
 │   └── include/dt-bindings/            # Device tree binding headers
+├── overlay/                      # System configuration overlays (sysctl, systemd, apt)
 ├── patch/
-│   └── 0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch # Self-contained mainline 6.18 patch
+│   ├── 0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch # Self-contained mainline 6.18 patch
+│   ├── 0300-packaging-armbian-builddeb.patch                  # Debian/Ubuntu builddeb packaging patch
+│   └── orangepi-build.patch                                   # Harness integration patch
+├── scripts/
+│   ├── build-os-image.sh         # Unified local builder for Ubuntu, Debian, Arch
+│   └── build-arch-image.sh       # Standalone Arch Linux ARM image builder
 └── README.md
 ```
 
 ---
 
-## 4. Multi-Distribution & Flavour Support
+## 5. Multi-Distribution & Flavour Support
 
 This repository supports building the full stack of **Ubuntu**, **Debian**, and **Arch Linux ARM** releases across **Minimal**, **Server**, and **Desktop (XFCE, GNOME, MATE)** flavours:
 
@@ -101,16 +129,9 @@ This repository supports building the full stack of **Ubuntu**, **Debian**, and 
 - **`desktop-gnome`**: Full GNOME Wayland desktop environment with native hardware compositing.
 - **`desktop-mate`**: Classic, traditional MATE desktop environment (available for Debian).
 
-### Default Credentials:
-| Distribution Family | Default User | Default Password | Root Login |
-| :--- | :--- | :--- | :--- |
-| **Ubuntu (`noble`, `jammy`, `focal`)** | `orangepi` | `orangepi` (sudo) | `root` / `orangepi` |
-| **Debian (`bookworm`, `trixie`, `bullseye`)** | `orangepi` | `orangepi` (sudo) | `root` / `orangepi` |
-| **Arch Linux ARM (`arch`)** | `alarm` | `alarm` (sudo) | `root` / `root` |
-
 ---
 
-## 5. Building with GitHub Actions CI
+## 6. Building with GitHub Actions CI
 
 The unified daily pipeline (`.github/workflows/daily.yml`) supports on-demand builds for any distribution and flavour:
 
@@ -125,7 +146,7 @@ The unified daily pipeline (`.github/workflows/daily.yml`) supports on-demand bu
 
 ---
 
-## 6. Local Build Instructions
+## 7. Local Build Instructions
 
 ### Using the Unified Local Image Builder (`scripts/build-os-image.sh`):
 You can build any Ubuntu, Debian, or Arch Linux image directly on your local machine:
@@ -137,13 +158,16 @@ sudo bash scripts/build-os-image.sh noble desktop-xfce
 # 2. Build Ubuntu 24.04 LTS (Noble) Minimal Headless Server:
 sudo bash scripts/build-os-image.sh noble minimal
 
-# 3. Build Debian 12 (Bookworm) with GNOME Desktop:
+# 3. Build Ubuntu 22.04 LTS (Jammy) Standard Server:
+sudo bash scripts/build-os-image.sh jammy server
+
+# 4. Build Debian 12 (Bookworm) with GNOME Desktop:
 sudo bash scripts/build-os-image.sh bookworm desktop-gnome
 
-# 4. Build Debian 12 (Bookworm) Standard Server:
-sudo bash scripts/build-os-image.sh bookworm server
+# 5. Build Debian 13 (Trixie) with MATE Desktop:
+sudo bash scripts/build-os-image.sh trixie desktop-mate
 
-# 5. Build Arch Linux ARM Rolling SD Image:
+# 6. Build Arch Linux ARM Rolling SD Image:
 sudo bash scripts/build-os-image.sh arch
 ```
 
@@ -166,6 +190,5 @@ make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image dtbs modules
 
 ---
 
-## 6. License
+## 8. License
 Kernel patches and device trees are dual-licensed under GPL-2.0 and MIT.
-EOF
