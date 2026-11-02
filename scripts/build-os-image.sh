@@ -7,7 +7,31 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Dynamically resolve orangepi-4pro-kernel repository root
+if [ -f "${SCRIPT_DIR}/../patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch" ]; then
+    REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+elif [ -f "${SCRIPT_DIR}/../orangepi-4pro-kernel/patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch" ]; then
+    REPO_ROOT="$(cd "${SCRIPT_DIR}/../orangepi-4pro-kernel" && pwd)"
+elif [ -f "/srv/kernel/orangepi-4pro-kernel/patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch" ]; then
+    REPO_ROOT="/srv/kernel/orangepi-4pro-kernel"
+else
+    echo "[-] Error: Could not locate orangepi-4pro-kernel repository with patches."
+    exit 1
+fi
+
+# Dynamically resolve orangepi-build harness directory
+if [ -d "${REPO_ROOT}/orangepi-build" ]; then
+    HARNESS_DIR="${REPO_ROOT}/orangepi-build"
+elif [ -d "${REPO_ROOT}/../orangepi-build" ]; then
+    HARNESS_DIR="$(cd "${REPO_ROOT}/../orangepi-build" && pwd)"
+elif [ -d "/srv/kernel/orangepi-build" ]; then
+    HARNESS_DIR="/srv/kernel/orangepi-build"
+elif [ -d "${SCRIPT_DIR}/../orangepi-build" ]; then
+    HARNESS_DIR="$(cd "${SCRIPT_DIR}/../orangepi-build" && pwd)"
+else
+    HARNESS_DIR="${REPO_ROOT}/orangepi-build"
+fi
 
 RELEASE="${1:-noble}"
 FLAVOUR="${2:-minimal}"
@@ -15,6 +39,8 @@ FLAVOUR="${2:-minimal}"
 echo "========================================================================"
 echo "  Orange Pi 4 Pro (A733 / Linux 6.18) OS Image Builder"
 echo "  Distribution: ${RELEASE} | Flavour: ${FLAVOUR}"
+echo "  Kernel Repo:  ${REPO_ROOT}"
+echo "  Build Harness: ${HARNESS_DIR}"
 echo "========================================================================"
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -25,7 +51,14 @@ fi
 # Handle Arch Linux ARM
 if [ "${RELEASE}" = "arch" ]; then
     echo "[*] Handing off to Arch Linux ARM image builder..."
-    exec bash "${SCRIPT_DIR}/build-arch-image.sh"
+    if [ -f "${SCRIPT_DIR}/build-arch-image.sh" ]; then
+        exec bash "${SCRIPT_DIR}/build-arch-image.sh"
+    elif [ -f "${REPO_ROOT}/scripts/build-arch-image.sh" ]; then
+        exec bash "${REPO_ROOT}/scripts/build-arch-image.sh"
+    else
+        echo "[-] Error: Could not find build-arch-image.sh."
+        exit 1
+    fi
 fi
 
 BUILD_MINIMAL="no"
@@ -62,9 +95,8 @@ case "${FLAVOUR}" in
         ;;
 esac
 
-HARNESS_DIR="${REPO_ROOT}/orangepi-build"
 if [ ! -d "${HARNESS_DIR}" ]; then
-    echo "[*] Cloning orangepi-build harness..."
+    echo "[*] Cloning orangepi-build harness to ${HARNESS_DIR}..."
     git clone --depth 1 https://github.com/orangepi-xunlong/orangepi-build.git "${HARNESS_DIR}"
     git -C "${HARNESS_DIR}" apply "${REPO_ROOT}/patch/orangepi-build.patch"
 fi

@@ -6,13 +6,26 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+# Dynamically resolve orangepi-4pro-kernel repository root
+if [ -f "${SCRIPT_DIR}/../patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch" ]; then
+    REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+elif [ -f "${SCRIPT_DIR}/../orangepi-4pro-kernel/patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch" ]; then
+    REPO_ROOT="$(cd "${SCRIPT_DIR}/../orangepi-4pro-kernel" && pwd)"
+elif [ -f "/srv/kernel/orangepi-4pro-kernel/patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch" ]; then
+    REPO_ROOT="/srv/kernel/orangepi-4pro-kernel"
+else
+    echo "[-] Error: Could not locate orangepi-4pro-kernel repository."
+    exit 1
+fi
+
 OUTPUT_DIR="${REPO_ROOT}/output_arch"
 BUILD_DATE="$(date +%Y%m%d)"
 IMAGE_NAME="orangepi4pro-archlinux-arm64-${BUILD_DATE}.img"
 
 echo "========================================================================"
 echo "  Building Arch Linux ARM (ALARM) SD Card Image: Orange Pi 4 Pro"
+echo "  Kernel Repo:  ${REPO_ROOT}"
 echo "========================================================================"
 
 mkdir -p "${OUTPUT_DIR}"
@@ -44,8 +57,6 @@ echo "[*] Creating 4.5 GB raw disk image: ${TARGET_IMG}..."
 truncate -s 4800M "${TARGET_IMG}"
 
 # Partitioning disk:
-# Offset 0 - 2047: Bootloader / SPL space (Allwinner A733 loads SPL at 8KB, U-Boot at 40KB)
-# Partition 1: Sector 2048 to end, Ext4 rootfs
 echo "[*] Partitioning disk image..."
 parted -s "${TARGET_IMG}" mklabel msdos
 parted -s "${TARGET_IMG}" mkpart primary ext4 2048s 100%
