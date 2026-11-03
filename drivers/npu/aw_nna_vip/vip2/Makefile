@@ -1,8 +1,8 @@
-KDIR ?= /srv/kernel/orangepi-build/kernel/linux-6.18.y
+KDIR ?= /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)
 
 default:
-	$(MAKE) ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- -C $(KDIR) M=$(PWD) modules CONFIG_AW_NNA_VIP=m
+	$(MAKE) -C $(KDIR) M=$(PWD) modules CONFIG_AW_NNA_VIP=m
 
 clean:
-	$(MAKE) ARCH=arm64 CROSS_COMPILE=aarch64-none-linux-gnu- -C $(KDIR) M=$(PWD) clean
+	$(MAKE) -C $(KDIR) M=$(PWD) clean
