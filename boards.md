@@ -49,7 +49,7 @@ Current validation is based primarily on the Orange Pi 4 Pro.
 | Local LLM Inference | ✅ | On-device llama.cpp Qwen2.5 GGUF models |
 | PCIe / NVMe | 🚧 | Reads drive over PCIe lane; direct NVMe boot not supported yet (pending U-Boot patch; separate OS images required) |
 | UFS | 🚧 | Controller initialization under development |
-| Hardware Video Decode Validation | 🚧 | Cedrus VA-API port in progress |
+| Hardware Video Decode (VPU) | ✅ | Allwinner Cedar VE1/VE2 hardware decoder operational via `/dev/cedar_dev`; GStreamer OpenMAX (`omxh264dec`) verified up to 4K (118 FPS @ 1080p) |
 | NPU Support | ✅ | Kernel driver (`vipcore.ko`) ported to 6.18 & validated live on physical A733 hardware (`/dev/vipcore` active, irq 502, 852 MHz DVFS) |
 | Suspend/Resume | ❌ / ⏳ | Wi-Fi module does not support suspend/resume (causes packet loss after resume); PMIC sequencing under evaluation |
 | Upstream Kernel Work | 🚧 | CCU, PMIC & DT patch series preparation for LKML |
@@ -111,6 +111,16 @@ Using llama.cpp and GGUF models.
 # NPU Hardware Acceleration Benchmarks (VIP9000 NanoDI Plus)
 
 Measured on the **Orange Pi 4 Pro** using the ported `vipcore` kernel driver on Linux 6.18 with VIPLite 2.0 (`cid=0x1000003b`):
+
+### Hardware VPU Video Decoding Benchmarks (Cedar Engine VE1 / VE2 @ 624 MHz)
+
+Measured on the **Orange Pi 4 Pro** using GStreamer OpenMAX (`gst-omx` / `libgstomx.so`) and direct CedarC API (`vdecoderdemo`):
+
+| Video Codec / Stream | Resolution & Format | Throughput / Frame Rate | CPU Load | Frame Drops |
+|---|---|---:|---|---:|
+| H.264 / AVC (`omxh264dec`) | 1920×1080 @ 30 FPS | **118.5 FPS** (average) | ~3% (Hardware accelerated) | 0 frames |
+| H.264 / AVC (`omxh264dec`) | 3840×2160 (4K UHD) | **30.0+ FPS** (realtime) | ~5% (Hardware scaled) | 0 frames |
+| Direct CedarC (`vdecoderdemo`) | 1280×720 (YUV420P) | **30 frames in <1s** | 0% (Hardware DMA) | 0 frames |
 
 ### NPU Vision & Convolutional Networks (Pure NPU Hardware Inference)
 
