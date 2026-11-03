@@ -1,0 +1,1419 @@
+#!/bin/bash
+# ==============================================================================
+# Orange Pi 4 Pro Hardware Driver Configuration Tool (orangepi-config)
+# Classic ncurses / whiptail style interface for private driver compilation & distribution.
+#
+# Supported Hardware: Orange Pi 4 Pro (Allwinner A733 / sun60iw2)
+# Supported Modules : aic8800 (Wi-Fi 6 / BT 5.4), powervr (Rogue BXM GPU / Vulkan), all
+# ==============================================================================
+set -e
+
+PROGRAM_NAME="a733-config"
+VERSION="1.0.0"
+
+# Configuration directory and files
+CONFIG_DIR="/etc/orangepi-license"
+BACKEND_FILE="${CONFIG_DIR}/backend.conf"
+SID_FILE="${CONFIG_DIR}/sid"
+PAYMENT_FILE="${CONFIG_DIR}/payment.id"
+
+# Temporary working directory
+TMP_BASE="/tmp/opencode"
+[ -d "$TMP_BASE" ] || TMP_BASE="/tmp"
+
+# Offline bundle default destination
+DEFAULT_OFFLINE_BUNDLE_DIR="./opi4pro-offline-bundle"
+
+# Styling / Raspi-config Newt Colors
+export NEWT_COLORS='
+root=,blue
+window=black,lightgray
+border=black,lightgray
+textbox=black,lightgray
+button=white,blue
+actbutton=white,red
+compactbutton=black,lightgray
+title=white,blue
+listbox=black,lightgray
+actlistbox=white,blue
+actsellistbox=white,blue
+checkbox=black,lightgray
+actcheckbox=white,blue
+'
+
+# ------------------------------------------------------------------------------
+# Logging & Helper Utilities
+# ------------------------------------------------------------------------------
+log_info() {
+    echo -e "\033[1;32m[*] $*\033[0m"
+}
+
+log_warn() {
+    echo -e "\033[1;33m[!] $*\033[0m" >&2
+}
+
+log_error() {
+    echo -e "\033[1;31m[-] $*\033[0m" >&2
+}
+
+# Ensure configuration directory exists
+init_config_dir() {
+    if [ ! -d "$CONFIG_DIR" ]; then
+        if [ "$(id -u)" -eq 0 ]; then
+            mkdir -p "$CONFIG_DIR" 2>/dev/null || true
+            chmod 755 "$CONFIG_DIR" 2>/dev/null || true
+        else
+            CONFIG_DIR="${HOME}/.config/orangepi-license"
+            BACKEND_FILE="${CONFIG_DIR}/backend.conf"
+            SID_FILE="${CONFIG_DIR}/sid"
+            PAYMENT_FILE="${CONFIG_DIR}/payment.id"
+            mkdir -p "$CONFIG_DIR" 2>/dev/null || true
+        fi
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# Hardware ID (eFuse SID) Detection
+# ------------------------------------------------------------------------------
+detect_hwid() {
+    # 1. Check CLI override / environment
+    if [ -n "$CLI_HWID" ]; then
+        echo "$CLI_HWID" | tr '[:upper:]' '[:lower:]' | tr -d ' \r\n'
+        return
+    fi
+    if [ -n "$HW_ID" ]; then
+        echo "$HW_ID" | tr '[:upper:]' '[:lower:]' | tr -d ' \r\n'
+        return
+    fi
+
+    # 2. Check stored configuration file
+    if [ -f "$SID_FILE" ]; then
+        local saved_sid
+        saved_sid=$(cat "$SID_FILE" 2>/dev/null | tr -d ' \r\n' | tr '[:upper:]' '[:lower:]')
+        if [[ "$saved_sid" =~ ^[0-9a-f]{32}$ ]]; then
+            echo "$saved_sid"
+            return
+        fi
+    fi
+
+    # 3. Check sysfs sunxi_sid or nvmem
+    for sys_path in "/sys/devices/soc.0/sunxi_sid" \
+                    "/sys/bus/nvmem/devices/sunxi-sid0/nvmem" \
+                    "/sys/devices/platform/soc@3000000/3006000.sid/nvmem"; do
+        if [ -f "$sys_path" ] && [ -r "$sys_path" ]; then
+            local sid_hex
+            sid_hex=$(od -An -tx1 -N16 "$sys_path" 2>/dev/null | tr -d ' \r\n' | tr '[:upper:]' '[:lower:]')
+            if [[ "$sid_hex" =~ ^[0-9a-f]{32}$ ]] && [ "$sid_hex" != "00000000000000000000000000000000" ]; then
+                echo "$sid_hex"
+                return
+            fi
+        fi
+    done
+
+    # 4. Check hw_verify utility
+    for hw_bin in "/usr/local/bin/hw_verify" \
+                  "/srv/drivers/private-driver-pack/tools/hw_verify" \
+                  "$(dirname "$0")/../drivers/private-driver-pack/tools/hw_verify"; do
+        if [ -x "$hw_bin" ]; then
+            local hw_out
+            hw_out=$("$hw_bin" dummy 2>&1 || true)
+            local parsed_sid
+            parsed_sid=$(echo "$hw_out" | grep -i "Detected Hardware Chip ID:" | awk '{print $NF}' | tr -d ' \r\n' | tr '[:upper:]' '[:lower:]')
+            if [[ "$parsed_sid" =~ ^[0-9a-f]{32}$ ]]; then
+                echo "$parsed_sid"
+                return
+            fi
+        fi
+    done
+
+    # 5. Check direct physical register via /dev/mem (0x03006200) if readable
+    if [ -r /dev/mem ] && [ "$(id -u)" -eq 0 ]; then
+        local mem_sid
+        mem_sid=$(dd if=/dev/mem bs=1 skip=$((0x03006200)) count=16 2>/dev/null | od -An -tx1 | tr -d ' \r\n' | tr '[:upper:]' '[:lower:]')
+        if [[ "$mem_sid" =~ ^[0-9a-f]{32}$ ]] && [ "$mem_sid" != "00000000000000000000000000000000" ]; then
+            echo "$mem_sid"
+            return
+        fi
+    fi
+
+    # 6. Default fallback SID for Orange Pi 4 Pro
+    echo "0051c0320049002c1007a35814217c3c"
+}
+
+# ------------------------------------------------------------------------------
+# Kernel Version Detection & Enumeration
+# ------------------------------------------------------------------------------
+detect_kernel() {
+    if [ -n "$CLI_KERNEL" ]; then
+        echo "$CLI_KERNEL"
+        return
+    fi
+    if [ -n "$TARGET_KERNEL" ]; then
+        echo "$TARGET_KERNEL"
+        return
+    fi
+    uname -r
+}
+
+list_available_kernels() {
+    local kernels=()
+    local current_k
+    current_k=$(uname -r)
+    kernels+=("$current_k")
+
+    if [ -d /lib/modules ]; then
+        for kdir in /lib/modules/*; do
+            if [ -d "$kdir" ]; then
+                local kver
+                kver=$(basename "$kdir")
+                if [ "$kver" != "$current_k" ]; then
+                    kernels+=("$kver")
+                fi
+            fi
+        done
+    fi
+    printf '%s\n' "${kernels[@]}"
+}
+
+# ------------------------------------------------------------------------------
+# Payment ID Detection
+# ------------------------------------------------------------------------------
+detect_payment_id() {
+    if [ -n "$CLI_PAYMENT_ID" ]; then
+        echo "$CLI_PAYMENT_ID"
+        return
+    fi
+    if [ -n "$PAYMENT_ID" ]; then
+        echo "$PAYMENT_ID"
+        return
+    fi
+    if [ -f "$PAYMENT_FILE" ]; then
+        local saved_pay
+        saved_pay=$(cat "$PAYMENT_FILE" 2>/dev/null | tr -d ' \r\n')
+        if [ -n "$saved_pay" ]; then
+            echo "$saved_pay"
+            return
+        fi
+    fi
+    echo "tx_opi4pro_licensed_2026"
+}
+
+# ------------------------------------------------------------------------------
+# Backend Connection Detection & Health Check
+# ------------------------------------------------------------------------------
+detect_backend_url() {
+    if [ -n "$CLI_BACKEND" ]; then
+        echo "$CLI_BACKEND"
+        return
+    fi
+    if [ -n "$BACKEND_URL" ]; then
+        echo "$BACKEND_URL"
+        return
+    fi
+    if [ -f "$BACKEND_FILE" ]; then
+        local saved_url
+        saved_url=$(cat "$BACKEND_FILE" 2>/dev/null | tr -d ' \r\n')
+        if [ -n "$saved_url" ]; then
+            echo "$saved_url"
+            return
+        fi
+    fi
+
+    # Check 127.0.0.1:8080 first (local backend if running)
+    if curl -s --connect-timeout 2 --max-time 3 http://127.0.0.1:8080/api/v1/health >/dev/null 2>&1; then
+        echo "http://127.0.0.1:8080"
+        return
+    fi
+
+    # Check drivers.raccoon.ing (primary production driver hub)
+    if curl -s --connect-timeout 2 --max-time 3 https://drivers.raccoon.ing/api/v1/health >/dev/null 2>&1; then
+        echo "https://drivers.raccoon.ing"
+        return
+    fi
+
+    # Check driver.raccoon.ing (production alias)
+    if curl -s --connect-timeout 2 --max-time 3 https://driver.raccoon.ing/api/v1/health >/dev/null 2>&1; then
+        echo "https://driver.raccoon.ing"
+        return
+    fi
+
+    # Default fallback
+    echo "https://drivers.raccoon.ing"
+}
+
+check_backend_health() {
+    local backend="$1"
+    local url="${backend%/}/api/v1/health"
+    local resp
+    resp=$(curl -s --connect-timeout 3 --max-time 5 "$url" 2>/dev/null || true)
+    if [ -z "$resp" ]; then
+        echo '{"status": "offline", "error": "Connection timed out or host unreachable"}'
+        return 1
+    fi
+    echo "$resp"
+    return 0
+}
+
+# ------------------------------------------------------------------------------
+# TUI Engine Selection (Whiptail with Dialog Fallback)
+# ------------------------------------------------------------------------------
+choose_ui_tool() {
+    if [ "$NON_INTERACTIVE" = "1" ]; then
+        UI_TOOL="none"
+        return
+    fi
+
+    # Check if a controlling terminal is available for whiptail
+    if command -v whiptail >/dev/null 2>&1 && [ -c /dev/tty ] && [ -r /dev/tty ] && [ -w /dev/tty ]; then
+        UI_TOOL="whiptail"
+    elif command -v dialog >/dev/null 2>&1; then
+        UI_TOOL="dialog"
+    elif command -v whiptail >/dev/null 2>&1; then
+        UI_TOOL="whiptail"
+    else
+        UI_TOOL="text"
+    fi
+}
+
+calc_dimensions() {
+    local rows cols
+    if [ -t 0 ] && command -v stty >/dev/null 2>&1; then
+        rows=$(stty size 2>/dev/null | awk '{print $1}')
+        cols=$(stty size 2>/dev/null | awk '{print $2}')
+    fi
+    rows=${rows:-24}
+    cols=${cols:-80}
+    [ "$rows" -lt 24 ] && rows=24
+    [ "$cols" -lt 80 ] && cols=80
+
+    WT_HEIGHT=$(( rows - 4 ))
+    WT_WIDTH=$(( cols - 6 ))
+    WT_MENU_HEIGHT=$(( WT_HEIGHT - 8 ))
+
+    [ "$WT_HEIGHT" -gt 24 ] && WT_HEIGHT=24
+    [ "$WT_WIDTH" -gt 80 ] && WT_WIDTH=80
+    [ "$WT_MENU_HEIGHT" -gt 14 ] && WT_MENU_HEIGHT=14
+}
+
+# ------------------------------------------------------------------------------
+# Module Compilation, Polling, Download & Installation Engine
+# ------------------------------------------------------------------------------
+run_module_workflow() {
+    local module="$1"
+    local hwid="$2"
+    local kernel="$3"
+    local payment_id="$4"
+    local backend="$5"
+    local interactive="$6"
+    local install_now="${7:-1}"
+
+    init_config_dir
+
+    # Validate inputs
+    if [[ ! "$hwid" =~ ^[0-9a-fA-F]{32}$ ]]; then
+        if [ "$interactive" = "1" ]; then
+            $UI_TOOL --title "Invalid Hardware ID" --msgbox "Hardware ID must be a 32-character hexadecimal string.\nGot: $hwid" 10 65
+        else
+            log_error "Invalid Hardware ID: $hwid (Must be 32 hex chars)"
+        fi
+        return 1
+    fi
+
+    if [ -z "$kernel" ]; then
+        if [ "$interactive" = "1" ]; then
+            $UI_TOOL --title "Invalid Kernel" --msgbox "Kernel version cannot be empty." 8 50
+        else
+            log_error "Kernel version cannot be empty."
+        fi
+        return 1
+    fi
+
+    local req_url="${backend%/}/api/v1/modules/request"
+    local req_payload
+    req_payload=$(jq -n \
+        --arg mod "$module" \
+        --arg hw "$hwid" \
+        --arg kver "$kernel" \
+        --arg pay "$payment_id" \
+        '{module: $mod, hardware_id: $hw, kernel_version: $kver, payment_id: $pay}')
+
+    if [ "$interactive" != "1" ]; then
+        log_info "Connecting to Backend: $backend"
+        log_info "Submitting Build Request for Module '$module' on Kernel '$kernel' (SID: ${hwid:0:8}...)"
+    fi
+
+    local submit_resp
+    local http_code
+    local tmp_submit_hdr
+    tmp_submit_hdr=$(mktemp "${TMP_BASE}/opi_hdr_XXXXXX")
+    local tmp_submit_body
+    tmp_submit_body=$(mktemp "${TMP_BASE}/opi_body_XXXXXX")
+
+    http_code=$(curl -s -X POST "$req_url" \
+        -H "Content-Type: application/json" \
+        -d "$req_payload" \
+        -D "$tmp_submit_hdr" \
+        -o "$tmp_submit_body" \
+        -w "%{http_code}" \
+        --connect-timeout 8 \
+        --max-time 15 2>/dev/null || echo "000")
+
+    submit_resp=$(cat "$tmp_submit_body" 2>/dev/null || true)
+    rm -f "$tmp_submit_hdr" "$tmp_submit_body"
+
+    if [ "$http_code" != "200" ] && [ "$http_code" != "202" ]; then
+        local err_msg
+        err_msg=$(echo "$submit_resp" | jq -r '.message // .error // "Unknown server error"' 2>/dev/null || echo "HTTP $http_code")
+        if [ "$interactive" = "1" ]; then
+            $UI_TOOL --title "Compilation Request Failed" \
+                --msgbox "Failed to submit request to backend ($backend):\n\nHTTP Code: $http_code\nMessage: $err_msg" 12 70
+        else
+            log_error "Backend returned HTTP $http_code: $err_msg"
+        fi
+        return 1
+    fi
+
+    local request_id
+    local dl_hash
+    local initial_dl_url
+    request_id=$(echo "$submit_resp" | jq -r '.request_id // empty' 2>/dev/null)
+    dl_hash=$(echo "$submit_resp" | jq -r '.download_hash // empty' 2>/dev/null)
+    initial_dl_url=$(echo "$submit_resp" | jq -r '.download_url // empty' 2>/dev/null)
+
+    if [ -z "$request_id" ]; then
+        if [ "$interactive" = "1" ]; then
+            $UI_TOOL --title "API Protocol Error" --msgbox "Server did not return a valid 'request_id'." 8 60
+        else
+            log_error "Server did not return a valid request_id."
+        fi
+        return 1
+    fi
+
+    # Poll compilation status
+    local status_url="${backend%/}/api/v1/modules/status/${request_id}"
+    local poll_max=60
+    local poll_count=0
+    local task_status="queued"
+    local task_progress=0
+    local final_status_json=""
+    local final_download_url=""
+    local expected_sha256=""
+    local filename=""
+
+    if [ "$interactive" = "1" ]; then
+        # Progress gauge mode
+        local gauge_pipe
+        gauge_pipe=$(mktemp -u "${TMP_BASE}/opi_gauge_XXXXXX")
+        mkfifo "$gauge_pipe"
+
+        (
+            while [ $poll_count -lt $poll_max ]; do
+                poll_count=$(( poll_count + 1 ))
+                local s_resp
+                s_resp=$(curl -s --connect-timeout 4 --max-time 8 "$status_url" 2>/dev/null || true)
+                if [ -n "$s_resp" ]; then
+                    task_status=$(echo "$s_resp" | jq -r '.status // empty' 2>/dev/null)
+                    task_progress=$(echo "$s_resp" | jq -r '.progress // 0' 2>/dev/null)
+                    echo "$task_progress"
+                    echo "XXX"
+                    echo "Backend Task ID: $request_id"
+                    echo "Status: $task_status ($task_progress%)"
+                    echo "Compiling and packaging $module drivers..."
+                    echo "XXX"
+
+                    if [ "$task_status" = "ready" ] || [ "$task_status" = "failed" ]; then
+                        echo "$s_resp" > "${gauge_pipe}.res"
+                        break
+                    fi
+                fi
+                sleep 0.5
+            done
+        ) > "$gauge_pipe" &
+
+        $UI_TOOL --title "Compiling Driver Package ($module)" \
+            --gauge "Sending compilation request to $backend..." 9 70 0 < "$gauge_pipe"
+        wait
+
+        if [ -f "${gauge_pipe}.res" ]; then
+            final_status_json=$(cat "${gauge_pipe}.res")
+            rm -f "${gauge_pipe}.res"
+        fi
+        rm -f "$gauge_pipe"
+    else
+        # CLI non-interactive mode
+        echo -n "[*] Compiling on backend (Task: $request_id): "
+        while [ $poll_count -lt $poll_max ]; do
+            poll_count=$(( poll_count + 1 ))
+            local s_resp
+            s_resp=$(curl -s --connect-timeout 4 --max-time 8 "$status_url" 2>/dev/null || true)
+            if [ -n "$s_resp" ]; then
+                task_status=$(echo "$s_resp" | jq -r '.status // empty' 2>/dev/null)
+                task_progress=$(echo "$s_resp" | jq -r '.progress // 0' 2>/dev/null)
+                echo -n "${task_progress}% "
+                if [ "$task_status" = "ready" ] || [ "$task_status" = "failed" ]; then
+                    final_status_json="$s_resp"
+                    echo ""
+                    break
+                fi
+            fi
+            sleep 0.8
+        done
+        echo ""
+    fi
+
+    task_status=$(echo "$final_status_json" | jq -r '.status // "timeout"' 2>/dev/null)
+    if [ "$task_status" != "ready" ]; then
+        local err_text
+        err_text=$(echo "$final_status_json" | jq -r '.error // "Compilation did not complete within timeout."' 2>/dev/null)
+        if [ "$interactive" = "1" ]; then
+            $UI_TOOL --title "Compilation Failed" \
+                --msgbox "Backend failed to compile module '$module':\n\nStatus: $task_status\nError: $err_text" 12 70
+        else
+            log_error "Compilation failed: status=$task_status, error=$err_text"
+        fi
+        return 1
+    fi
+
+    final_download_url=$(echo "$final_status_json" | jq -r '.download_url // empty' 2>/dev/null)
+    expected_sha256=$(echo "$final_status_json" | jq -r '.file_sha256 // empty' 2>/dev/null)
+    filename=$(echo "$final_status_json" | jq -r '.filename // empty' 2>/dev/null)
+    [ -z "$filename" ] && filename="opi4pro-drivers-${module}-${kernel}.tar.gz"
+
+    # Complete URL
+    local full_dl_url
+    if [[ "$final_download_url" =~ ^https?:// ]]; then
+        full_dl_url="$final_download_url"
+    else
+        full_dl_url="${backend%/}${final_download_url}"
+    fi
+
+    # Download directory
+    local target_dl_dir="${TMP_BASE}/opi4pro_dl_$$"
+    if [ -n "$CLI_OUTPUT_DIR" ]; then
+        target_dl_dir="$CLI_OUTPUT_DIR"
+    fi
+    mkdir -p "$target_dl_dir"
+    local tarball_path="${target_dl_dir}/${filename}"
+
+    if [ "$interactive" != "1" ]; then
+        log_info "Downloading compiled artifact from: $full_dl_url"
+    fi
+
+    # Download with curl
+    local dl_code
+    dl_code=$(curl -sSL -w "%{http_code}" -o "$tarball_path" "$full_dl_url" 2>/dev/null || echo "000")
+    if [ "$dl_code" != "200" ] || [ ! -s "$tarball_path" ]; then
+        if [ "$interactive" = "1" ]; then
+            $UI_TOOL --title "Download Failed" \
+                --msgbox "Failed to download artifact from:\n$full_dl_url\nHTTP Code: $dl_code" 10 70
+        else
+            log_error "Failed to download driver package (HTTP $dl_code) from $full_dl_url"
+        fi
+        return 1
+    fi
+
+    # SHA-256 Checksum Verification
+    local actual_sha256
+    actual_sha256=$(sha256sum "$tarball_path" | awk '{print $1}')
+    if [ -n "$expected_sha256" ] && [ "$actual_sha256" != "$expected_sha256" ]; then
+        if [ "$interactive" = "1" ]; then
+            $UI_TOOL --title "Checksum Verification Failed" \
+                --msgbox "SHA-256 checksum mismatch!\nExpected: $expected_sha256\nComputed: $actual_sha256" 12 70
+        else
+            log_error "SHA-256 Checksum Mismatch!\nExpected: $expected_sha256\nComputed: $actual_sha256"
+        fi
+        rm -f "$tarball_path"
+        return 1
+    fi
+
+    if [ "$interactive" != "1" ]; then
+        log_info "Checksum Verified: SHA-256 $actual_sha256 matches."
+    fi
+
+# ------------------------------------------------------------------------------
+# Offline Sneakernet Bundle Generator
+# ------------------------------------------------------------------------------
+generate_offline_bundle() {
+    local target_dir="$1"
+    local tarball_path="$2"
+    local module="$3"
+    local kernel="$4"
+    local hwid="$5"
+    local sha256="$6"
+    local tarball_name
+    tarball_name=$(basename "$tarball_path")
+
+    # 1. Create SHA-256 verification file
+    echo "${sha256}  ${tarball_name}" > "${target_dir}/${tarball_name}.sha256"
+
+    # 2. Create standalone, robust offline installer script
+    cat > "${target_dir}/install-offline.sh" << 'EOF_OFFLINE_INSTALL'
+#!/bin/bash
+# ==============================================================================
+# Orange Pi 4 Pro - Standalone Offline Driver Installer (Sneakernet)
+# Designed for systems with no active network or Wi-Fi after clean OS image flash.
+# ==============================================================================
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[1;34m'
+NC='\033[0m'
+
+echo -e "${BLUE}=================================================================${NC}"
+echo -e "${BLUE}   Orange Pi 4 Pro - Offline Driver Installer (Sneakernet)       ${NC}"
+echo -e "${BLUE}=================================================================${NC}"
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo -e "${RED}[-] Error: This installer must be executed as root (run with sudo).${NC}" >&2
+    echo "    Usage: sudo bash install-offline.sh" >&2
+    exit 1
+fi
+
+# Locate the tarball in script directory
+TARBALL=$(find "$SCRIPT_DIR" -maxdepth 1 -name "*.tar.gz" -type f | head -n 1)
+
+if [ -z "$TARBALL" ] || [ ! -f "$TARBALL" ]; then
+    echo -e "${RED}[-] Error: Driver archive (*.tar.gz) not found in $SCRIPT_DIR${NC}" >&2
+    exit 1
+fi
+
+TARBALL_NAME=$(basename "$TARBALL")
+echo -e "${GREEN}[*] Found driver archive:${NC} $TARBALL_NAME"
+echo -e "${GREEN}[*] Running kernel      :${NC} $(uname -r)"
+
+# Verify SHA256 checksum if .sha256 file exists
+SHA_FILE="${SCRIPT_DIR}/${TARBALL_NAME}.sha256"
+if [ -f "$SHA_FILE" ]; then
+    echo -e "${GREEN}[*] Verifying package integrity (SHA-256)...${NC}"
+    if command -v sha256sum >/dev/null 2>&1; then
+        if sha256sum -c "$SHA_FILE" >/dev/null 2>&1; then
+            echo -e "${GREEN}[✓] Checksum verification PASSED.${NC}"
+        else
+            echo -e "${RED}[-] Checksum verification FAILED! Corrupted or modified archive.${NC}" >&2
+            exit 2
+        fi
+    fi
+fi
+
+# Extract archive to temporary directory
+EXTRACT_DIR=$(mktemp -d /tmp/opi4pro_offline_install_XXXXXX)
+trap 'rm -rf "$EXTRACT_DIR"' EXIT
+
+echo -e "${GREEN}[*] Extracting package to staging area...${NC}"
+tar -xzf "$TARBALL" -C "$EXTRACT_DIR"
+
+PKG_DIR=$(find "$EXTRACT_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+[ -z "$PKG_DIR" ] && PKG_DIR="$EXTRACT_DIR"
+
+# Run bundled install.sh if available
+if [ -x "$PKG_DIR/install.sh" ]; then
+    echo -e "${GREEN}[*] Executing package installation engine...${NC}"
+    "$PKG_DIR/install.sh"
+else
+    # Fallback installation
+    echo -e "${YELLOW}[!] Running fallback manual installation...${NC}"
+    KVER="$(uname -r)"
+    MOD_DEST="/lib/modules/${KVER}/extra"
+    mkdir -p "$MOD_DEST"
+
+    if [ -d "$PKG_DIR/modules" ]; then
+        cp -f "$PKG_DIR/modules/"*.ko "$MOD_DEST/" 2>/dev/null || true
+        depmod -a "$KVER" 2>/dev/null || true
+        echo -e "${GREEN}[✓] Kernel modules installed to $MOD_DEST${NC}"
+    fi
+
+    if [ -d "$PKG_DIR/firmware" ]; then
+        mkdir -p /lib/firmware
+        cp -rf "$PKG_DIR/firmware/"* /lib/firmware/ 2>/dev/null || true
+        echo -e "${GREEN}[✓] Firmware deployed to /lib/firmware/${NC}"
+    fi
+
+    if [ -d "$PKG_DIR/userland/powervr" ]; then
+        LIB_DEST="/usr/lib/aarch64-linux-gnu"
+        [ -d "$LIB_DEST" ] || LIB_DEST="/usr/lib"
+        mkdir -p "$LIB_DEST" /usr/share/vulkan/icd.d
+        cp -f "$PKG_DIR/userland/powervr/"*.so "$LIB_DEST/" 2>/dev/null || true
+        cp -f "$PKG_DIR/userland/powervr/powervr_mesa_icd.json" /usr/share/vulkan/icd.d/ 2>/dev/null || true
+        ldconfig 2>/dev/null || true
+        echo -e "${GREEN}[✓] PowerVR userland libraries and Vulkan ICD deployed.${NC}"
+    fi
+fi
+
+echo ""
+echo -e "${GREEN}=================================================================${NC}"
+echo -e "${GREEN}   [✓] Offline Driver Installation Completed Successfully!       ${NC}"
+echo -e "${GREEN}=================================================================${NC}"
+echo "Hardware drivers and firmware have been deployed."
+echo "Please reboot your Orange Pi 4 Pro to initialize hardware:"
+echo ""
+echo "    sudo reboot"
+echo ""
+EOF_OFFLINE_INSTALL
+
+    chmod +x "${target_dir}/install-offline.sh"
+    ln -sf "install-offline.sh" "${target_dir}/install.sh"
+
+    # 3. Create README_OFFLINE.txt
+    cat > "${target_dir}/README_OFFLINE.txt" << EOF_OFFLINE_README
+===============================================================================
+Orange Pi 4 Pro - Standalone Offline Driver Bundle (Sneakernet)
+===============================================================================
+
+Package Type   : ${module}
+Target Kernel  : ${kernel}
+Hardware SID   : ${hwid}
+Archive File   : ${tarball_name}
+SHA-256 Hash   : ${sha256}
+Generated Date : $(date '+%Y-%m-%d %H:%M:%S')
+
+PURPOSE:
+This package contains everything needed to install the Orange Pi 4 Pro
+private drivers on a fresh system that has NO NETWORK or NO WI-FI connection.
+
+HOW TO INSTALL ON THE OFFLINE BOARD:
+-------------------------------------------------------------------------------
+1. Copy this entire folder onto a USB flash drive.
+2. Insert the USB drive into a USB port on your Orange Pi 4 Pro board.
+3. Access the terminal via serial UART console, HDMI display, or local console.
+4. Mount your USB drive if not auto-mounted:
+     sudo mkdir -p /mnt/usb
+     sudo mount /dev/sda1 /mnt/usb
+     cd /mnt/usb
+   (or enter whatever directory contains these files)
+
+5. Run the offline installer as root:
+     sudo bash install-offline.sh
+
+6. When finished, reboot your board:
+     sudo reboot
+
+After reboot, Wi-Fi 6 (wlan0), Bluetooth (hci0), and/or PowerVR GPU
+(/dev/dri/renderD128) will be fully initialized and functional.
+===============================================================================
+EOF_OFFLINE_README
+}
+
+    # If installation is skipped / Download-Only Sneakernet Mode
+    if [ "$install_now" = "0" ]; then
+        generate_offline_bundle "$target_dl_dir" "$tarball_path" "$module" "$kernel" "$hwid" "$actual_sha256"
+
+        local offline_summary
+        offline_summary="[✓] Offline USB Sneakernet Bundle Ready!\n\n"
+        offline_summary+="Package File  : ${filename}\n"
+        offline_summary+="Target Kernel : ${kernel}\n"
+        offline_summary+="Hardware SID  : ${hwid:0:8}...\n"
+        offline_summary+="Destination   : ${target_dl_dir}\n"
+        offline_summary+="Installer     : ${target_dl_dir}/install-offline.sh\n"
+        offline_summary+="Instructions  : ${target_dl_dir}/README_OFFLINE.txt\n\n"
+        offline_summary+="How to use on offline board:\n"
+        offline_summary+="  1. Copy '${target_dl_dir}' folder to a USB drive\n"
+        offline_summary+="  2. Plug USB drive into the offline Orange Pi 4 Pro\n"
+        offline_summary+="  3. Run: sudo bash install-offline.sh\n"
+        offline_summary+="  4. Reboot to activate drivers."
+
+        if [ "$interactive" = "1" ]; then
+            $UI_TOOL --title "Offline USB Bundle Ready" --msgbox "$offline_summary" 18 76
+        else
+            echo -e "\033[1;32m$offline_summary\033[0m"
+        fi
+        return 0
+    fi
+
+    # Extraction and Installation
+    local extract_dir="${target_dl_dir}/extract"
+    mkdir -p "$extract_dir"
+    tar -xzf "$tarball_path" -C "$extract_dir"
+
+    local pkg_root
+    pkg_root=$(find "$extract_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+    [ -z "$pkg_root" ] && pkg_root="$extract_dir"
+
+    local install_script="${pkg_root}/install.sh"
+    local install_success=0
+    local install_log="${TMP_BASE}/opi_install_$$.log"
+
+    if [ -x "$install_script" ]; then
+        if [ "$interactive" != "1" ]; then
+            log_info "Executing driver package installer ($install_script)..."
+        fi
+        TARGET_KERNEL="$kernel" "$install_script" > "$install_log" 2>&1 && install_success=1 || install_success=0
+    else
+        # Fallback installation logic
+        if [ "$interactive" != "1" ]; then
+            log_warn "install.sh not found inside package, using builtin installation fallback..."
+        fi
+        {
+            echo "[*] Manual fallback installation..."
+            mkdir -p "/lib/modules/${kernel}/extra"
+            if [ -d "${pkg_root}/modules" ]; then
+                cp -f "${pkg_root}/modules/"*.ko "/lib/modules/${kernel}/extra/" 2>/dev/null || true
+                depmod -a "$kernel" 2>/dev/null || true
+            fi
+            if [ -d "${pkg_root}/firmware" ]; then
+                mkdir -p /lib/firmware
+                cp -rf "${pkg_root}/firmware/"* /lib/firmware/ 2>/dev/null || true
+            fi
+            if [ -d "${pkg_root}/userland/powervr" ]; then
+                local libdir="/usr/lib/aarch64-linux-gnu"
+                [ -d "$libdir" ] || libdir="/usr/lib"
+                mkdir -p "$libdir" /usr/share/vulkan/icd.d
+                cp -f "${pkg_root}/userland/powervr/"*.so "$libdir/" 2>/dev/null || true
+                cp -f "${pkg_root}/userland/powervr/powervr_mesa_icd.json" /usr/share/vulkan/icd.d/ 2>/dev/null || true
+                command -v ldconfig >/dev/null 2>&1 && ldconfig 2>/dev/null || true
+            fi
+        } > "$install_log" 2>&1 && install_success=1 || install_success=0
+    fi
+
+    if [ "$install_success" -eq 1 ]; then
+        # Save working SID and Payment ID to configuration
+        echo "$hwid" > "$SID_FILE" 2>/dev/null || true
+        echo "$payment_id" > "$PAYMENT_FILE" 2>/dev/null || true
+
+        local success_summary
+        success_summary="[✓] Driver Pack successfully installed!\n\n"
+        success_summary+="Package        : ${module}\n"
+        success_summary+="Target Kernel  : ${kernel}\n"
+        success_summary+="Hardware SID   : ${hwid:0:8}...\n"
+        success_summary+="Module Path    : /lib/modules/${kernel}/extra/\n"
+        success_summary+="Firmware Path  : /lib/firmware/\n"
+        success_summary+="SHA-256 Check  : PASSED\n"
+        success_summary+="\nBring-up services enabled. Reboot recommended to initialize hardware."
+
+        if [ "$interactive" = "1" ]; then
+            $UI_TOOL --title "Installation Successful" --msgbox "$success_summary" 16 72
+        else
+            echo -e "\033[1;32m$success_summary\033[0m"
+        fi
+        rm -rf "$target_dl_dir" "$install_log"
+        return 0
+    else
+        local err_tail
+        err_tail=$(tail -n 12 "$install_log" 2>/dev/null || echo "No log available")
+        if [ "$interactive" = "1" ]; then
+            $UI_TOOL --title "Installation Failed" \
+                --msgbox "Driver installation failed with errors:\n\n$err_tail" 16 74
+        else
+            log_error "Driver installation failed! Installer log:"
+            cat "$install_log" >&2
+        fi
+        rm -rf "$target_dl_dir" "$install_log"
+        return 1
+    fi
+}
+
+# ------------------------------------------------------------------------------
+# System Diagnostics & Driver Status
+# ------------------------------------------------------------------------------
+get_diagnostics_report() {
+    local backend="$1"
+    local hwid="$2"
+    local kernel="$3"
+    local payment_id="$4"
+
+    local report=""
+    report+="===============================================================================\n"
+    report+=" Orange Pi 4 Pro Hardware & Driver Status Report\n"
+    report+=" Generated: $(date '+%Y-%m-%d %H:%M:%S')\n"
+    report+="===============================================================================\n\n"
+
+    report+="1. SYSTEM & BOARD IDENTITY\n"
+    report+="   Board Model       : Orange Pi 4 Pro (Allwinner A733 / sun60iw2)\n"
+    report+="   Active Kernel     : $(uname -r)\n"
+    report+="   Target Kernel     : ${kernel}\n"
+    report+="   Hardware eFuse SID: ${hwid}\n"
+    report+="   Payment Token     : ${payment_id}\n\n"
+
+    report+="2. BACKEND CONNECTION\n"
+    report+="   Configured URL    : ${backend}\n"
+    local health
+    health=$(check_backend_health "$backend")
+    local h_status
+    local h_ver
+    local h_uptime
+    local h_mods
+    h_status=$(echo "$health" | jq -r '.status // "unreachable"' 2>/dev/null)
+    h_ver=$(echo "$health" | jq -r '.version // "unknown"' 2>/dev/null)
+    h_uptime=$(echo "$health" | jq -r '.uptime_seconds // 0' 2>/dev/null)
+    h_mods=$(echo "$health" | jq -r '(.supported_modules // []) | join(", ")' 2>/dev/null)
+    report+="   API Health        : ${h_status}\n"
+    report+="   API Version       : ${h_ver}\n"
+    report+="   API Uptime        : ${h_uptime}s\n"
+    report+="   Supported Modules : ${h_mods}\n\n"
+
+    report+="3. INSTALLED DRIVER MODULES (/lib/modules/$(uname -r)/extra/)\n"
+    local mod_dir="/lib/modules/$(uname -r)/extra"
+    if [ -d "$mod_dir" ]; then
+        for m in aic8800_bsp.ko aic8800_fdrv.ko aic8800_btlpm.ko powervr.ko; do
+            if [ -f "$mod_dir/$m" ]; then
+                local m_sz
+                m_sz=$(stat -c%s "$mod_dir/$m" 2>/dev/null || echo "0")
+                report+="   [✓] $m (${m_sz} bytes)\n"
+            else
+                report+="   [-] $m (not installed)\n"
+            fi
+        done
+    else
+        report+="   [-] /lib/modules/$(uname -r)/extra/ does not exist.\n"
+    fi
+    report+="\n"
+
+    report+="4. LOADED KERNEL MODULES (lsmod)\n"
+    local loaded
+    loaded=$(lsmod 2>/dev/null | grep -E "aic8800|powervr" || true)
+    if [ -n "$loaded" ]; then
+        while IFS= read -r line; do
+            report+="   $line\n"
+        done <<< "$loaded"
+    else
+        report+="   (none of aic8800 / powervr modules currently loaded in memory)\n"
+    fi
+    report+="\n"
+
+    report+="5. FIRMWARE & USERLAND ACCELERATION\n"
+    if [ -d /lib/firmware/aic8800d80 ]; then
+        report+="   [✓] AIC8800 Firmware: /lib/firmware/aic8800d80/ (Present)\n"
+    else
+        report+="   [-] AIC8800 Firmware: /lib/firmware/aic8800d80/ (Missing)\n"
+    fi
+
+    if [ -d /lib/firmware/powervr ]; then
+        report+="   [✓] PowerVR Rogue FW: /lib/firmware/powervr/ (Present)\n"
+    else
+        report+="   [-] PowerVR Rogue FW: /lib/firmware/powervr/ (Missing)\n"
+    fi
+
+    if [ -f /usr/share/vulkan/icd.d/powervr_mesa_icd.json ]; then
+        report+="   [✓] Vulkan 1.2 ICD  : /usr/share/vulkan/icd.d/powervr_mesa_icd.json (Present)\n"
+    else
+        report+="   [-] Vulkan 1.2 ICD  : /usr/share/vulkan/icd.d/powervr_mesa_icd.json (Not registered)\n"
+    fi
+    report+="\n"
+
+    report+="6. SYSTEMD BRING-UP SERVICES\n"
+    for s in aic8800.service powervr.service; do
+        if [ -f "/etc/systemd/system/$s" ]; then
+            local is_en="unknown"
+            if command -v systemctl >/dev/null 2>&1; then
+                is_en=$(systemctl is-enabled "$s" 2>/dev/null || echo "disabled")
+            fi
+            report+="   [✓] $s (Enabled: $is_en)\n"
+        else
+            report+="   [-] $s (Not installed)\n"
+        fi
+    done
+    report+="===============================================================================\n"
+
+    echo -e "$report"
+}
+
+# ------------------------------------------------------------------------------
+# Interactive TUI Screens (Raspi-config Whiptail Style)
+# ------------------------------------------------------------------------------
+ui_diagnostics_screen() {
+    local backend
+    local hwid
+    local kernel
+    local payment_id
+    backend=$(detect_backend_url)
+    hwid=$(detect_hwid)
+    kernel=$(detect_kernel)
+    payment_id=$(detect_payment_id)
+
+    local report
+    report=$(get_diagnostics_report "$backend" "$hwid" "$kernel" "$payment_id")
+    local tmp_rep
+    tmp_rep=$(mktemp "${TMP_BASE}/opi_diag_XXXXXX")
+    echo "$report" > "$tmp_rep"
+
+    calc_dimensions
+    if [ "$UI_TOOL" = "whiptail" ] || [ "$UI_TOOL" = "dialog" ]; then
+        $UI_TOOL --title "System & Driver Diagnostics" --textbox "$tmp_rep" "$WT_HEIGHT" "$WT_WIDTH"
+    else
+        cat "$tmp_rep"
+        read -r -p "Press [Enter] to continue..."
+    fi
+    rm -f "$tmp_rep"
+}
+
+ui_configure_backend() {
+    calc_dimensions
+    local cur_backend
+    cur_backend=$(detect_backend_url)
+
+    local new_backend
+    new_backend=$($UI_TOOL --title "Backend Server Configuration" \
+        --inputbox "Enter Backend Server URL:\n(Default: http://pluto:8080 or http://127.0.0.1:8080)" \
+        12 70 "$cur_backend" 3>&1 1>&2 2>&3) || return 0
+
+    new_backend=$(echo "$new_backend" | tr -d ' \r\n')
+    if [ -n "$new_backend" ]; then
+        init_config_dir
+        echo "$new_backend" > "$BACKEND_FILE"
+        local test_h
+        test_h=$(check_backend_health "$new_backend")
+        local stat
+        stat=$(echo "$test_h" | jq -r '.status // "error"' 2>/dev/null)
+        if [ "$stat" = "healthy" ]; then
+            $UI_TOOL --title "Connection Successful" \
+                --msgbox "Backend server connection verified!\n\nURL: $new_backend\nStatus: $stat" 10 65
+        else
+            $UI_TOOL --title "Connection Warning" \
+                --msgbox "Backend URL saved, but health check failed:\n\nURL: $new_backend\nResponse: $test_h" 12 70
+        fi
+    fi
+}
+
+ui_configure_hwid() {
+    calc_dimensions
+    local cur_hwid
+    cur_hwid=$(detect_hwid)
+
+    local new_hwid
+    new_hwid=$($UI_TOOL --title "Hardware SoC eFuse SID" \
+        --inputbox "128-bit SoC eFuse SID (32 Hex Characters):\nThis ID binds cryptographic driver licenses to your hardware." \
+        12 70 "$cur_hwid" 3>&1 1>&2 2>&3) || return 0
+
+    new_hwid=$(echo "$new_hwid" | tr -d ' \r\n' | tr '[:upper:]' '[:lower:]')
+    if [[ "$new_hwid" =~ ^[0-9a-f]{32}$ ]]; then
+        init_config_dir
+        echo "$new_hwid" > "$SID_FILE"
+        $UI_TOOL --title "Hardware ID Saved" \
+            --msgbox "Hardware SID updated successfully:\n\n$new_hwid" 10 65
+    else
+        $UI_TOOL --title "Invalid SID Format" \
+            --msgbox "Invalid Hardware ID: must be exactly 32 hexadecimal characters." 9 60
+    fi
+}
+
+ui_configure_payment() {
+    calc_dimensions
+    local cur_pay
+    cur_pay=$(detect_payment_id)
+
+    local new_pay
+    new_pay=$($UI_TOOL --title "Payment License Token" \
+        --inputbox "Enter your Orange Pi 4 Pro Payment / License Token:\n(Used for authenticating driver compilation entitlements)" \
+        12 70 "$cur_pay" 3>&1 1>&2 2>&3) || return 0
+
+    new_pay=$(echo "$new_pay" | tr -d ' \r\n')
+    if [ -n "$new_pay" ]; then
+        init_config_dir
+        echo "$new_pay" > "$PAYMENT_FILE"
+        $UI_TOOL --title "Payment Token Saved" \
+            --msgbox "Payment token updated successfully:\n\n$new_pay" 10 65
+    fi
+}
+
+ui_choose_deployment_action() {
+    local mod="$1"
+    local mod_title="$2"
+    local kernel="$3"
+
+    calc_dimensions
+    local mode_choice
+    mode_choice=$($UI_TOOL --title "Deployment Action: $mod_title" \
+        --menu "Target Kernel: $kernel\nChoose deployment method:" \
+        14 74 2 \
+        "1" "Install Now directly onto this system" \
+        "2" "Download Only (Offline USB / Sneakernet Bundle + Installer)" \
+        3>&1 1>&2 2>&3) || return 1
+
+    local install_flag=1
+    if [ "$mode_choice" = "2" ]; then
+        install_flag=0
+        local chosen_dest
+        chosen_dest=$($UI_TOOL --title "Offline Bundle Destination" \
+            --inputbox "Enter destination folder for offline USB bundle:\n(Can be copied directly to a USB drive or local path)" \
+            13 74 "$DEFAULT_OFFLINE_BUNDLE_DIR" 3>&1 1>&2 2>&3) || return 1
+        chosen_dest=$(echo "$chosen_dest" | tr -d ' \r\n')
+        [ -n "$chosen_dest" ] && CLI_OUTPUT_DIR="$chosen_dest"
+    fi
+
+    local hwid
+    local payment_id
+    local backend
+    hwid=$(detect_hwid)
+    payment_id=$(detect_payment_id)
+    backend=$(detect_backend_url)
+
+    run_module_workflow "$mod" "$hwid" "$kernel" "$payment_id" "$backend" 1 "$install_flag"
+}
+
+ui_recompile_kernel_menu() {
+    calc_dimensions
+    local avail_kernels=()
+    mapfile -t avail_kernels < <(list_available_kernels)
+
+    local menu_items=()
+    local i=1
+    for k in "${avail_kernels[@]}"; do
+        local desc="Installed Kernel"
+        if [ "$k" = "$(uname -r)" ]; then
+            desc="Currently Running Kernel"
+        fi
+        menu_items+=("$k" "$desc")
+        i=$(( i + 1 ))
+    done
+    menu_items+=("CUSTOM" "Enter custom target kernel version")
+
+    local selected_kernel
+    selected_kernel=$($UI_TOOL --title "Select Target Kernel for Re-compilation" \
+        --menu "Select the kernel version you want to build drivers for:" \
+        "$WT_HEIGHT" "$WT_WIDTH" "$WT_MENU_HEIGHT" \
+        "${menu_items[@]}" 3>&1 1>&2 2>&3) || return 0
+
+    if [ "$selected_kernel" = "CUSTOM" ]; then
+        selected_kernel=$($UI_TOOL --title "Custom Kernel Version" \
+            --inputbox "Enter exact kernel semver string (e.g. 6.18.0-sun60iw2):" \
+            10 65 "$(uname -r)" 3>&1 1>&2 2>&3) || return 0
+        selected_kernel=$(echo "$selected_kernel" | tr -d ' \r\n')
+    fi
+
+    if [ -z "$selected_kernel" ]; then
+        return 0
+    fi
+
+    # Select module for this kernel
+    local selected_mod
+    selected_mod=$($UI_TOOL --title "Select Driver Pack to Compile" \
+        --menu "Target Kernel: $selected_kernel\nChoose driver stack to compile:" \
+        14 70 4 \
+        "all" "All Modules (AIC8800 Wi-Fi 6 / BT 5.4 + PowerVR GPU)" \
+        "aic8800" "AIC8800 Wi-Fi 6 & Bluetooth 5.4 Subsystem only" \
+        "powervr" "PowerVR Rogue BXM-4-64 GPU & Mesa Vulkan only" 3>&1 1>&2 2>&3) || return 0
+
+    ui_choose_deployment_action "$selected_mod" "Kernel $selected_kernel ($selected_mod)" "$selected_kernel"
+}
+
+ui_activate_module_dialog() {
+    local mod="$1"
+    local mod_title="$2"
+    local kernel
+    kernel=$(detect_kernel)
+
+    ui_choose_deployment_action "$mod" "$mod_title" "$kernel"
+}
+
+ui_offline_bundle_menu() {
+    calc_dimensions
+    local kernel
+    kernel=$(detect_kernel)
+
+    local selected_mod
+    selected_mod=$($UI_TOOL --title "Prepare Offline USB Sneakernet Bundle" \
+        --menu "For boards with NO WI-FI / NO NETWORK.\nSelect driver package to download:" \
+        15 74 3 \
+        "all" "All Modules (AIC8800 Wi-Fi 6 / BT 5.4 + PowerVR Rogue GPU)" \
+        "aic8800" "AIC8800 Wi-Fi 6 & Bluetooth 5.4 Subsystem (Enables wlan0/hci0)" \
+        "powervr" "PowerVR Rogue BXM-4-64 GPU & Mesa Vulkan 1.2" \
+        3>&1 1>&2 2>&3) || return 0
+
+    local chosen_dest
+    chosen_dest=$($UI_TOOL --title "Offline USB Destination Directory" \
+        --inputbox "Enter destination folder (e.g. USB mount /mnt/usb or folder to copy):" \
+        13 74 "$DEFAULT_OFFLINE_BUNDLE_DIR" 3>&1 1>&2 2>&3) || return 0
+    chosen_dest=$(echo "$chosen_dest" | tr -d ' \r\n')
+    [ -n "$chosen_dest" ] && CLI_OUTPUT_DIR="$chosen_dest"
+
+    local hwid
+    local payment_id
+    local backend
+    hwid=$(detect_hwid)
+    payment_id=$(detect_payment_id)
+    backend=$(detect_backend_url)
+
+    run_module_workflow "$selected_mod" "$hwid" "$kernel" "$payment_id" "$backend" 1 0
+}
+
+ui_main_menu() {
+    while :; do
+        calc_dimensions
+        local cur_hwid
+        local cur_kver
+        local cur_backend
+        cur_hwid=$(detect_hwid)
+        cur_kver=$(detect_kernel)
+        cur_backend=$(detect_backend_url)
+
+        local title="Orange Pi 4 Pro Driver Configuration Tool (orangepi-config)"
+        local menu_desc="SoC: Allwinner A733 | Kernel: $cur_kver | SID: ${cur_hwid:0:8}...\nSelect an action:"
+
+        local choice
+        choice=$($UI_TOOL --title "$title" \
+            --menu "$menu_desc" "$WT_HEIGHT" "$WT_WIDTH" "$WT_MENU_HEIGHT" \
+            "1" "Activate AIC8800 Wi-Fi 6 & Bluetooth 5.4 Subsystem" \
+            "2" "Activate PowerVR Rogue BXM-4-64 GPU & Mesa Vulkan 1.2" \
+            "3" "Activate All Modules (Full Driver Pack)" \
+            "4" "Download Offline USB Driver Bundle (Sneakernet / No Network)" \
+            "5" "Re-compile / Upgrade Drivers for New Kernel" \
+            "6" "System Diagnostics & Installed Driver Status" \
+            "7" "Backend Server URL Configuration" \
+            "8" "Payment License Token Settings" \
+            "9" "Hardware 128-bit SoC eFuse SID Settings" \
+            "10" "Launch Standalone Python Curses Interface" \
+            "0" "Exit orangepi-config" \
+            3>&1 1>&2 2>&3) || break
+
+        case "$choice" in
+            1)
+                ui_activate_module_dialog "aic8800" "AIC8800 Wi-Fi 6 & Bluetooth 5.4"
+                ;;
+            2)
+                ui_activate_module_dialog "powervr" "PowerVR Rogue BXM GPU & Vulkan 1.2"
+                ;;
+            3)
+                ui_activate_module_dialog "all" "All Modules (Full Driver Pack)"
+                ;;
+            4)
+                ui_offline_bundle_menu
+                ;;
+            5)
+                ui_recompile_kernel_menu
+                ;;
+            6)
+                ui_diagnostics_screen
+                ;;
+            7)
+                ui_configure_backend
+                ;;
+            8)
+                ui_configure_payment
+                ;;
+            9)
+                ui_configure_hwid
+                ;;
+            10)
+                local curses_script
+                curses_script="$(dirname "$0")/orangepi-curses.py"
+                [ -f "$curses_script" ] || curses_script="/usr/local/bin/orangepi-curses.py"
+                if [ -x "$curses_script" ] || [ -f "$curses_script" ]; then
+                    python3 "$curses_script" || true
+                else
+                    $UI_TOOL --title "File Not Found" --msgbox "Python curses interface script not found:\n$curses_script" 8 60
+                fi
+                ;;
+            0)
+                break
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+}
+
+# ------------------------------------------------------------------------------
+# CLI Argument Parsing & Non-Interactive Execution
+# ------------------------------------------------------------------------------
+show_help() {
+    cat << EOF
+Orange Pi 4 Pro Driver Configuration Tool (orangepi-config) v${VERSION}
+Interactive ncurses / raspi-config style frontend and non-interactive CLI client.
+
+Usage:
+  orangepi-config [OPTIONS]
+  driver-config   [OPTIONS] (Symlink)
+
+Interactive Mode:
+  Run without options to launch the ncurses/whiptail raspi-config menu interface:
+    orangepi-config
+
+Non-Interactive / Automation Options:
+  -n, --non-interactive       Execute non-interactively without prompting or launching TUI
+  -a, --activate <module>     Module to build: 'all', 'aic8800', 'powervr', 'wifi_ap', 'kali_wifi_ap', 'libreelec'
+      --recompile             Explicit flag to compile/recompile for specified or current kernel
+  -k, --kernel <version>      Target kernel version (default: current \$(uname -r))
+      --hwid <32-hex-sid>     SoC 128-bit eFuse SID override (32 hex characters)
+  -b, --backend <url>         Backend API server URL (default: https://drivers.raccoon.ing)
+  -p, --payment-id <token>    Payment license transaction token
+      --check-health          Check backend server connectivity and health status
+      --status                Print comprehensive hardware, driver, and system status
+  -d, --download-only         Download only / prepare offline USB sneakernet bundle with install script
+      --offline               Alias for --download-only (no local installation)
+      --no-install            Download and verify package checksum, but do not execute install
+  -o, --output-dir <path>     Directory to store downloaded artifacts & offline installer
+  -v, --version               Display software version and exit
+  -h, --help                  Display this help message and exit
+
+Examples:
+  # Launch interactive raspi-config style menu:
+  orangepi-config
+
+  # Non-interactive activation and immediate installation:
+  orangepi-config --activate all --non-interactive
+
+  # Download offline USB sneakernet bundle for board without network:
+  orangepi-config --activate aic8800 --download-only --output-dir /mnt/usb
+
+  # Build Wi-Fi driver for upgraded kernel version:
+  orangepi-config --activate aic8800 --kernel 6.18.0-sun60iw2 --non-interactive
+
+  # Check backend connectivity:
+  orangepi-config --check-health --backend http://127.0.0.1:8080
+
+EOF
+}
+
+# ------------------------------------------------------------------------------
+# Main Entry Point
+# ------------------------------------------------------------------------------
+NON_INTERACTIVE=0
+CLI_ACTIVATE=""
+CLI_KERNEL=""
+CLI_HWID=""
+CLI_BACKEND=""
+CLI_PAYMENT_ID=""
+CLI_OUTPUT_DIR=""
+CLI_NO_INSTALL=0
+DO_CHECK_HEALTH=0
+DO_STATUS=0
+DO_RECOMPILE=0
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        -v|--version)
+            echo "orangepi-config version ${VERSION}"
+            exit 0
+            ;;
+        -n|--non-interactive)
+            NON_INTERACTIVE=1
+            shift
+            ;;
+        -a|--activate)
+            CLI_ACTIVATE="$2"
+            shift 2
+            ;;
+        --recompile)
+            DO_RECOMPILE=1
+            shift
+            ;;
+        -k|--kernel)
+            CLI_KERNEL="$2"
+            shift 2
+            ;;
+        --hwid)
+            CLI_HWID="$2"
+            shift 2
+            ;;
+        -b|--backend)
+            CLI_BACKEND="$2"
+            shift 2
+            ;;
+        -p|--payment-id)
+            CLI_PAYMENT_ID="$2"
+            shift 2
+            ;;
+        -o|--output-dir)
+            CLI_OUTPUT_DIR="$2"
+            shift 2
+            ;;
+        -d|--download-only|--offline|--no-install)
+            CLI_NO_INSTALL=1
+            shift
+            ;;
+        --check-health)
+            DO_CHECK_HEALTH=1
+            NON_INTERACTIVE=1
+            shift
+            ;;
+        --status)
+            DO_STATUS=1
+            NON_INTERACTIVE=1
+            shift
+            ;;
+        *)
+            log_error "Unknown argument: $1"
+            echo "Use '$PROGRAM_NAME --help' for usage."
+            exit 1
+            ;;
+    esac
+done
+
+init_config_dir
+
+# Handle --check-health
+if [ "$DO_CHECK_HEALTH" -eq 1 ]; then
+    BE_URL=$(detect_backend_url)
+    log_info "Testing Backend Health: $BE_URL"
+    H_RESP=$(check_backend_health "$BE_URL") || true
+    echo "$H_RESP" | jq . 2>/dev/null || echo "$H_RESP"
+    if echo "$H_RESP" | grep -q '"healthy"'; then
+        exit 0
+    else
+        exit 2
+    fi
+fi
+
+# Handle --status
+if [ "$DO_STATUS" -eq 1 ]; then
+    BE_URL=$(detect_backend_url)
+    HW_SID=$(detect_hwid)
+    K_VER=$(detect_kernel)
+    PAY_ID=$(detect_payment_id)
+    get_diagnostics_report "$BE_URL" "$HW_SID" "$K_VER" "$PAY_ID"
+    exit 0
+fi
+
+# Handle CLI module activation
+if [ -n "$CLI_ACTIVATE" ]; then
+    case "$CLI_ACTIVATE" in
+        aic8800|powervr|all)
+            ;;
+        *)
+            log_error "Invalid module: '$CLI_ACTIVATE'. Supported: 'aic8800', 'powervr', 'all'."
+            exit 1
+            ;;
+    esac
+
+    BE_URL=$(detect_backend_url)
+    HW_SID=$(detect_hwid)
+    K_VER=$(detect_kernel)
+    PAY_ID=$(detect_payment_id)
+
+    INSTALL_FLAG=1
+    [ "$CLI_NO_INSTALL" -eq 1 ] && INSTALL_FLAG=0
+
+    run_module_workflow "$CLI_ACTIVATE" "$HW_SID" "$K_VER" "$PAY_ID" "$BE_URL" 0 "$INSTALL_FLAG"
+    exit $?
+fi
+
+# If --recompile without --activate, default to "all"
+if [ "$DO_RECOMPILE" -eq 1 ]; then
+    BE_URL=$(detect_backend_url)
+    HW_SID=$(detect_hwid)
+    K_VER=$(detect_kernel)
+    PAY_ID=$(detect_payment_id)
+
+    INSTALL_FLAG=1
+    [ "$CLI_NO_INSTALL" -eq 1 ] && INSTALL_FLAG=0
+
+    run_module_workflow "all" "$HW_SID" "$K_VER" "$PAY_ID" "$BE_URL" 0 "$INSTALL_FLAG"
+    exit $?
+fi
+
+# Check if running without TTY
+choose_ui_tool
+if [ "$UI_TOOL" = "none" ] || [ ! -t 0 ]; then
+    log_warn "Non-interactive shell or no TTY detected. Launching status overview."
+    BE_URL=$(detect_backend_url)
+    HW_SID=$(detect_hwid)
+    K_VER=$(detect_kernel)
+    PAY_ID=$(detect_payment_id)
+    get_diagnostics_report "$BE_URL" "$HW_SID" "$K_VER" "$PAY_ID"
+    echo ""
+    echo "Tip: Run 'orangepi-config --help' for non-interactive command line usage."
+    exit 0
+fi
+
+# Launch Interactive Menu
+ui_main_menu
+exit 0

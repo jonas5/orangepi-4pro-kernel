@@ -194,10 +194,10 @@ Name=eth0 end0 en*
 DHCP=yes
 NET
 
-# Copy orangepi-config if available
-if [ -f "/srv/frontend/orangepi-config" ]; then
-    cp -v "/srv/frontend/orangepi-config" "${WORK_MNT}/usr/local/bin/orangepi-config"
-    chmod 0755 "${WORK_MNT}/usr/local/bin/orangepi-config"
+# Copy a733-config if available
+if [ -f "/srv/frontend/a733-config" ]; then
+    cp -v "/srv/frontend/a733-config" "${WORK_MNT}/usr/local/bin/a733-config"
+    chmod 0755 "${WORK_MNT}/usr/local/bin/a733-config"
 fi
 
 echo "[*] Step 6: Finalizing image and unmounting..."

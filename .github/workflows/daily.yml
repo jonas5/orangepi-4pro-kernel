@@ -378,7 +378,7 @@ jobs:
 
           ### Hardware Architecture:
           - Modularized peripheral drivers (Ethernet, GPU, Wi-Fi 6, BT) as on-demand modules (\`=m\`)
-          - Out-of-tree drivers excluded from base image; proprietary hardware acceleration available via \`orangepi-config\`
+          - Out-of-tree drivers excluded from base image; proprietary hardware acceleration available via \`a733-config\`
           - \`cma=256M\` allocation and suspend/sleep targets permanently disabled for 24/7 server stability
           - Unified mainline device tree aliases with root disk locked to \`/dev/mmcblk0p1\`
 
