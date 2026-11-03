@@ -114,6 +114,7 @@ echo "[*] Syncing kernel patches and system overlays..."
 mkdir -p "${HARNESS_DIR}/external/patch/kernel/sun60iw2-next"
 cp -v "${REPO_ROOT}/patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch" "${HARNESS_DIR}/external/patch/kernel/sun60iw2-next/"
 cp -v "${REPO_ROOT}/patch/0300-packaging-armbian-builddeb.patch" "${HARNESS_DIR}/external/patch/kernel/sun60iw2-next/"
+cp -v "${REPO_ROOT}/patch/0003-allwinner-a733-cedrus-vpu-support.patch" "${HARNESS_DIR}/external/patch/kernel/sun60iw2-next/"
 
 mkdir -p "${HARNESS_DIR}/external/config/kernel"
 cp -v "${REPO_ROOT}/config/orangepi_4pro_defconfig" "${HARNESS_DIR}/external/config/kernel/linux-sun60iw2-next-a733.config"

@@ -1,0 +1,47 @@
+From: Jonas <developer@raccoon.ing>
+Date: Tue, 3 Nov 2026 20:30:00 +0000
+Subject: [PATCH] media: staging: cedrus: add support for Allwinner A733 (sun60iw2)
+
+Add sun60i_a733_cedrus_variant and DT match entry for the Allwinner A733
+SoC Cedar Video Engine block. Supports MPEG2, H.264, H.265 (HEVC 8/10-bit),
+and VP8 hardware video decoding at 624 MHz.
+
+Signed-off-by: Jonas <developer@raccoon.ing>
+---
+ drivers/staging/media/sunxi/cedrus/cedrus.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/drivers/staging/media/sunxi/cedrus/cedrus.c b/drivers/staging/media/sunxi/cedrus/cedrus.c
+index c3f8a0952..dde5685c8 100644
+--- a/drivers/staging/media/sunxi/cedrus/cedrus.c
++++ b/drivers/staging/media/sunxi/cedrus/cedrus.c
+@@ -653,6 +653,16 @@ static const struct cedrus_variant sun50i_h6_cedrus_variant = {
+ 	.mod_rate	= 600000000,
+ };
+ 
++static const struct cedrus_variant sun60i_a733_cedrus_variant = {
++	.capabilities	= CEDRUS_CAPABILITY_UNTILED |
++			  CEDRUS_CAPABILITY_MPEG2_DEC |
++			  CEDRUS_CAPABILITY_H264_DEC |
++			  CEDRUS_CAPABILITY_H265_DEC |
++			  CEDRUS_CAPABILITY_H265_10_DEC |
++			  CEDRUS_CAPABILITY_VP8_DEC,
++	.mod_rate	= 624000000,
++};
++
+ static const struct of_device_id cedrus_dt_match[] = {
+ 	{
+ 		.compatible = "allwinner,sun4i-a10-video-engine",
+@@ -698,6 +708,10 @@ static const struct of_device_id cedrus_dt_match[] = {
+ 		.compatible = "allwinner,sun50i-h6-video-engine",
+ 		.data = &sun50i_h6_cedrus_variant,
+ 	},
++	{
++		.compatible = "allwinner,sun60i-a733-video-engine",
++		.data = &sun60i_a733_cedrus_variant,
++	},
+ 	{ /* sentinel */ }
+ };
+ MODULE_DEVICE_TABLE(of, cedrus_dt_match);
+-- 
+2.47.3

@@ -793,7 +793,7 @@
 		ranges;
 
 		ve: ve@1c0e000 {
-			compatible = "allwinner,sunxi-cedar-ve";
+			compatible = "allwinner,sunxi-cedar-ve", "allwinner,sun60i-a733-video-engine";
 			reg = <0x0 0x01c0e000 0x0 0x3000>,
 			      <0x0 0x03000000 0x0 0x10>;
 			interrupts = <GIC_SPI 49 IRQ_TYPE_LEVEL_HIGH>;
