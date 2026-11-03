@@ -26,10 +26,11 @@ This repository provides the working mainline Linux **6.18.y** kernel baseline, 
 | **GPU / Vulkan** | PowerVR Rogue BXM-4-64 (`36.56.104.183`) | **Working** | `powervr.ko` on `/dev/dri/renderD128` + Mesa open-source Vulkan driver |
 | **Wi-Fi** | AIC8800D80 SDIO 4-bit (`mmc@4021000`) | **Working** | Separate module on demand (`wlan0`, 802.11ax Wi-Fi 6) |
 | **Bluetooth** | AIC8800D80 UART1 (`serial@2501000`) | **Working** | Native H4 1.5MBaud hardware flow control daemon (`hci0`) |
+| **NPU (AI)** | VeriSilicon VIP9000 NanoDI Plus (3 TOPS) | **Working** | `vipcore.ko` (/dev/vipcore, IRQ 502, 852MHz DVFS) + VIPLite 2.0 |
 | **Power Mgmt** | Desktop / GDM3 / Systemd | **Working** | Sleep & suspend targets permanently masked for 24/7 SBC server operation |
 
 > **Hardware Acceleration & Driver Packages (Free):**  
-> To maintain upstream kernel hygiene and keep this repository 100% clean and GPLv2 compliant, out-of-tree proprietary modules (PowerVR Rogue GPU Vulkan 1.2 stack and AIC8800 Wi-Fi 6 / Bluetooth 5.4 FullMAC drivers) are hosted outside git as free pre-compiled binary packages at [**drivers.raccoon.ing**](https://drivers.raccoon.ing).  
+> To maintain upstream kernel hygiene and keep this repository 100% clean and GPLv2 compliant, out-of-tree proprietary modules (PowerVR Rogue GPU Vulkan 1.2 stack, AIC8800 Wi-Fi 6 / Bluetooth 5.4 FullMAC, and VeriSilicon VIP9000 NPU drivers) are hosted outside git as free pre-compiled binary packages at [**drivers.raccoon.ing**](https://drivers.raccoon.ing).  
 >  
 > <a href="https://buymeacoffee.com/jonas5" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="46" style="height: 46px !important;"></a>
 
