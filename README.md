@@ -1,5 +1,12 @@
 # Allwinner A733 Linux Support — Mainline Linux 6.18 Baseline
 
+<p align="left">
+  <a href="https://github.com/jonas5/Allwinner-A733-kernel/actions/workflows/daily.yml"><img src="https://github.com/jonas5/Allwinner-A733-kernel/actions/workflows/daily.yml/badge.svg" alt="Daily Build &amp; Release" style="max-width: 100%;"></a>
+  <a href="https://github.com/jonas5/Allwinner-A733-kernel/actions/workflows/daily-trixie.yml"><img src="https://github.com/jonas5/Allwinner-A733-kernel/actions/workflows/daily-trixie.yml/badge.svg" alt="Daily Build &amp; Release (Debian Trixie)" style="max-width: 100%;"></a>
+  <a href="https://github.com/jonas5/orangepi-4pro-kali/actions/workflows/build-kali-image.yml"><img src="https://github.com/jonas5/orangepi-4pro-kali/actions/workflows/build-kali-image.yml/badge.svg" alt="Build &amp; Release Kali Linux Image" style="max-width: 100%;"></a>
+</p>
+
+
 This repository provides the working mainline Linux **6.18.y** kernel baseline, device trees, patches, and automated GitHub Actions workflows for the **Orange Pi 4 Pro (Allwinner A733 / `sun60iw2`)**.
 
 ---
