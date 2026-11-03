@@ -31,6 +31,15 @@ on:
           - desktop-xfce
           - desktop-gnome
           - desktop-mate
+      target_storage:
+        description: 'Target Storage Medium'
+        required: true
+        default: 'sd'
+        type: choice
+        options:
+          - sd
+          - nvme
+          - both
       tag_name:
         description: 'Custom release tag (leave empty for daily / tag trigger)'
         required: false
@@ -138,6 +147,10 @@ jobs:
           cp patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch orangepi-build/external/patch/kernel/sun60iw2-next/
           cp patch/0300-packaging-armbian-builddeb.patch orangepi-build/external/patch/kernel/sun60iw2-next/
           cp patch/0003-allwinner-a733-cedrus-vpu-support.patch orangepi-build/external/patch/kernel/sun60iw2-next/
+
+          # Copy U-Boot NVMe / PCIe distro boot patch
+          mkdir -p orangepi-build/external/patch/u-boot/v2018.05-sun60iw2
+          cp patch/0100-uboot-sun60iw2-a733-pcie-nvme-boot-support.patch orangepi-build/external/patch/u-boot/v2018.05-sun60iw2/
 
           # Copy modular defconfig
           mkdir -p orangepi-build/external/config/kernel
@@ -252,6 +265,30 @@ jobs:
           mkdir -p ../orangepi-build/output/images/
           mv "$TARGET_IMG" ../orangepi-build/output/images/
           cd ..
+
+      - name: Generate NVMe SSD Image (PCIe NVMe Rootfs)
+        if: steps.check-kernel.outputs.should_skip != 'true' && github.event.inputs.reuse_run_id == '' && (github.event.inputs.target_storage == 'nvme' || github.event.inputs.target_storage == 'both')
+        run: |
+          echo "=== Generating Standalone NVMe SSD Image ==="
+          BASE_IMG=$(find orangepi-build/output/ -type f -name "*.img" | grep -v "nvme" | head -n 1)
+          if [ -n "$BASE_IMG" ] && [ -f "$BASE_IMG" ]; then
+            NVME_IMG="${BASE_IMG%.img}-nvme.img"
+            echo "Converting $BASE_IMG to NVMe image: $NVME_IMG"
+            cp -v "$BASE_IMG" "$NVME_IMG"
+
+            LOOP=$(sudo losetup -Pf --show "$NVME_IMG")
+            sudo mkdir -p /mnt/nvme-ci
+            sudo mount "${LOOP}p1" /mnt/nvme-ci
+
+            # Configure NVMe rootfs partition
+            sudo sed -i 's|rootdev=.*|rootdev=/dev/nvme0n1p1|g' /mnt/nvme-ci/boot/orangepiEnv.txt || true
+            sudo sed -i 's|/dev/mmcblk0p1|/dev/nvme0n1p1|g' /mnt/nvme-ci/etc/fstab || true
+
+            sudo sync
+            sudo umount /mnt/nvme-ci
+            sudo losetup -d "$LOOP"
+            echo "NVMe rootfs reconfiguration complete: $NVME_IMG"
+          fi
 
       - name: Package artifacts
         if: steps.check-kernel.outputs.should_skip != 'true' && github.event.inputs.reuse_run_id == ''
