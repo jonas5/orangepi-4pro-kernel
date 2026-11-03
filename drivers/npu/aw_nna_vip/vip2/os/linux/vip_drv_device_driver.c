@@ -1520,6 +1520,8 @@ static vip_int32_t vipdrv_platform_probe(
     vip_uint32_t i = 0;
     vip_uint32_t total_core = 0;
 
+    pr_info("vipcore: platform_probe called for dev: %s\n", dev_name(&pdev->dev));
+
     kdriver->pdev = pdev;
     kdriver->device = &pdev->dev;
 

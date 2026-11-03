@@ -1166,6 +1166,7 @@ vip_int32_t vipdrv_drv_adjust_param(
 	vipdrv_driver_t *kdriver
 	)
 {
+	pr_info("vipcore: vipdrv_drv_adjust_param entered\n");
 	struct platform_device *pdev = kdriver->pdev;
 	struct device *dev = &(kdriver->pdev->dev);
 	struct resource *res;

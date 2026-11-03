@@ -2669,13 +2669,12 @@
 	cpu-supply = <&reg_dcdc3>;
 };
 
-/* NPU@3600000 is mislabelled "vivante,gc" in the SoC dtsi, which makes the
- * mainline etnaviv GPU driver claim it. An NPU has no etnaviv MMU, so opening
- * /dev/dri/cardN hits etnaviv_iommu_context_init() with a NULL context and the
- * kernel panics. Keep it disabled until a proper NPU driver/compatible exists. */
+/* Allwinner A733 NPU hardware block (@3600000)
+ * Driven by the ported vipcore (aw_nna_vip vip2) kernel driver.
+ * Uses compatible "allwinner,npu" exclusively to avoid etnaviv claiming it. */
 &npu {
 	npu-supply = <&reg_dcdc2>;
-	status = "disabled";
+	status = "okay";
 };
 
 &addr_mgt {

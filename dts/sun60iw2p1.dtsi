@@ -2292,7 +2292,7 @@
 		};
 
 		npu: npu@3600000 {
-			compatible = "allwinner,npu", "vivante,gc";
+			compatible = "allwinner,npu";
 			reg = <0x0 0x03600000 0x0 0x1000>;
 			device_type = "npu";
 			dev_name = "npu";
