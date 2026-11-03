@@ -84,6 +84,37 @@ All generated OS images come with pre-configured default credentials and automat
 
 ---
 
+---
+
+## Standalone NVMe Boot (No MicroSD Card Required)
+
+The Allwinner A733 Boot ROM (BROM) natively searches for bootloaders in the following priority:
+1. **SPI NOR Flash (`/dev/mtd0`)**
+2. **eMMC (`mmc2`)**
+3. **MicroSD (`mmc0`)**
+4. **UFS Storage**
+
+Because the BROM silicon does not contain a PCIe host driver, direct PCIe enumeration occurs in **U-Boot**. By flashing the modern U-Boot bootloader bundle into the board's **16 MB onboard SPI NOR flash (`/dev/mtd0`)**, the Orange Pi 4 Pro boots completely standalone from NVMe at full PCIe Gen3 speeds without requiring a MicroSD card.
+
+### Flashing U-Boot to SPI NOR Flash (`/dev/mtd0`)
+
+From the running system on your Orange Pi 4 Pro:
+
+```bash
+# 1. Erase the bootloader region on SPI NOR
+sudo flash_erase /dev/mtd0 0 50
+
+# 2. Write Stage 1 SPL (boot0) at offset 0
+sudo mtd_debug write /dev/mtd0 0 $(stat -c%s boot0_spinor_a733.fex) boot0_spinor_a733.fex
+
+# 3. Write Stage 2 TOC Boot Package (U-Boot + Monitor + SCP) at offset 256 KB (0x40000)
+sudo mtd_debug write /dev/mtd0 262144 $(stat -c%s boot_package.fex) boot_package.fex
+
+sudo sync
+```
+
+Once written, U-Boot initializes the PCIe bus (`pci enum; nvme scan; setenv devnum 0; run nvme_boot;`) and boots Linux directly from `/dev/nvme0n1p1`.
+
 ## 3. Supported Boards & Hardware Ecosystem
 
 The objective of this project is to provide and maintain modern Linux support for the broader **Allwinner A733 platform** across multiple hardware vendors rather than a single board implementation.

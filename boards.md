@@ -47,7 +47,7 @@ Current validation is based primarily on the Orange Pi 4 Pro.
 | Firefox/Web Browsing | ✅ | Smooth modern web rendering with WebRender |
 | YouTube Playback | ✅ | 1080p60 fluid playback in desktop session |
 | Local LLM Inference | ✅ | On-device llama.cpp Qwen2.5 GGUF models |
-| PCIe / NVMe | 🚧 | Reads drive over PCIe lane; direct NVMe boot not supported yet (pending U-Boot patch; separate OS images required) |
+| PCIe / NVMe | ✅ | Fully operational (Gen3 speed); Standalone direct boot enabled via U-Boot patch (`0100`) + onboard SPI NOR flash (`/dev/mtd0`) without MicroSD card |
 | UFS | 🚧 | Controller initialization under development |
 | Hardware Video Decode (VPU) | ✅ | Allwinner Cedar VE1/VE2 hardware decoder operational via `/dev/cedar_dev`; GStreamer OpenMAX (`omxh264dec`) verified up to 4K (118 FPS @ 1080p) |
 | NPU Support | ✅ | Kernel driver (`vipcore.ko`) ported to 6.18 & validated live on physical A733 hardware (`/dev/vipcore` active, irq 502, 852 MHz DVFS) |
