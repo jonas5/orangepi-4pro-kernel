@@ -99,6 +99,36 @@ Using llama.cpp and GGUF models.
 | Prompt Processing | 14.84 t/s |
 | Token Generation | 3.28 t/s |
 
+#### Qwen2.5-0.5B-Instruct Q8_0 (llama.cpp, 2× A76 Cores)
+
+| Test | Result |
+|--------|--------:|
+| Prompt Processing (pp128) | 135.04 t/s |
+| Token Generation (tg64) | 17.42 t/s |
+
+---
+
+# NPU Hardware Acceleration Benchmarks (VIP9000 NanoDI Plus)
+
+Measured on the **Orange Pi 4 Pro** using the ported `vipcore` kernel driver on Linux 6.18 with VIPLite 2.0 (`cid=0x1000003b`):
+
+### NPU Vision & Convolutional Networks (Pure NPU Hardware Inference)
+
+| Model | Input Shape | Precision | Pure NPU Latency | Frame Rate (FPS) |
+|---|---|---|---|---:|
+| LeNet | 28×28×1 | UINT8 | **114 µs** | ~8,770 FPS |
+| ResNet-50 | 224×224×3 | UINT8 | **10.07 ms** | ~99.2 FPS |
+| MobileCLIP-S0 (Vision Encoder) | 256×256×3 | INT16 | **22.6 ms** | 44.2 FPS |
+
+### NPU-Accelerated LLM & Hybrid VLM Inference (a733_npu_driver suite)
+
+| Model | Pipeline | Precision / Context | Throughput | Peak RSS / NBG Size | Status |
+|---|---|---|---|---|---|
+| SmolLM2-135M | NPU Native (`npu_lm_runner`) | INT16, W=32 | **20.7 tok/s** | 272 MiB RSS (281 MB NBG) | ✅ Verified (0% CPU) |
+| SmolLM2-360M | NPU Native (`npu_lm_runner`) | INT16, W=32 | **8.4 tok/s** | 646 MiB RSS (673 MB NBG) | ✅ Verified |
+| Qwen2.5-0.5B | CPU (2× Cortex-A76) | Q8_0, 2k ctx | **17.4 tok/s** (135 pp tok/s) | 1,109 MiB (6 A55 cores free) | ✅ Verified |
+| SmolVLM-256M | Hybrid (NPU Vision + CPU LLM) | Q8_0 | **52.6 tok/s** (22.6 ms vision) | 634 MiB RSS | ✅ Verified |
+
 ---
 
 # Acknowledgements
