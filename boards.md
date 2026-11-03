@@ -33,26 +33,26 @@ Legend:
 
 Current validation is based primarily on the Orange Pi 4 Pro.
 
-| Feature | Status |
-|----------|----------|
-| Linux 6.18.x Boot | ✅ |
-| Device Tree Support | ✅ |
-| Ethernet | ✅ |
-| SD Card Boot | ✅ |
-| eMMC Support | ✅ |
-| Wi-Fi | ✅ |
-| Bluetooth | ✅ |
-| Vulkan Graphics | ✅ |
-| Desktop Environment | ✅ |
-| Firefox/Web Browsing | ✅ |
-| YouTube Playback | ✅ |
-| Local LLM Inference | ✅ |
-| PCIe | 🚧 |
-| UFS | 🚧 |
-| Hardware Video Decode Validation | 🚧 |
-| NPU Support | 🚧 |
-| Suspend/Resume | ⏳ |
-| Upstream Kernel Work | 🚧 |
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Linux 6.18.x Boot | ✅ | Clean boot on upstream 6.18.y base |
+| Device Tree Support | ✅ | Mainline bindings and overlay portability |
+| Ethernet | ✅ | Dual GMAC Gigabit Ethernet operational |
+| SD Card Boot | ✅ | Standard bootloader & rootfs storage |
+| eMMC Support | ✅ | High-speed HS400 verified |
+| Wi-Fi | ✅ | AIC8800 Wi-Fi 6 (802.11ax) Station & AP modes |
+| Bluetooth | ✅ | Bluetooth 5.4 Dual-Mode / BlueZ |
+| Vulkan Graphics | ✅ | PowerVR Rogue via Mesa 25 Zink + KMSRO |
+| Desktop Environment | ✅ | Hardware-accelerated Wayland (GNOME / Wayfire) |
+| Firefox/Web Browsing | ✅ | Smooth modern web rendering with WebRender |
+| YouTube Playback | ✅ | 1080p60 fluid playback in desktop session |
+| Local LLM Inference | ✅ | On-device llama.cpp Qwen2.5 GGUF models |
+| PCIe / NVMe | 🚧 | Reads drive over PCIe lane; direct NVMe boot not supported yet (pending U-Boot patch; separate OS images required) |
+| UFS | 🚧 | Controller initialization under development |
+| Hardware Video Decode Validation | 🚧 | Cedrus VA-API port in progress |
+| NPU Support | 🚧 | NPU driver and userspace runtime research |
+| Suspend/Resume | ❌ / ⏳ | Wi-Fi module does not support suspend/resume (causes packet loss after resume); PMIC sequencing under evaluation |
+| Upstream Kernel Work | 🚧 | CCU, PMIC & DT patch series preparation for LKML |
 
 ---
 
