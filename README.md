@@ -28,10 +28,10 @@ This repository provides the working mainline Linux **6.18.y** kernel baseline, 
 | **Bluetooth** | AIC8800D80 UART1 (`serial@2501000`) | **Working** | Native H4 1.5MBaud hardware flow control daemon (`hci0`) |
 | **Power Mgmt** | Desktop / GDM3 / Systemd | **Working** | Sleep & suspend targets permanently masked for 24/7 SBC server operation |
 
-> **Hardware Acceleration Driver Licenses:**  
-> The core Linux kernel and base Debian/Ubuntu SD card images are 100% open source. Hardware acceleration modules (PowerVR Rogue GPU Vulkan 1.2 stack and AIC8800 Wi-Fi 6 / Bluetooth 5.4 FullMAC drivers) are maintained out-of-tree. Driver licenses can be grabbed below:  
+> **Hardware Acceleration & Driver Packages (Free):**  
+> To maintain upstream kernel hygiene and keep this repository 100% clean and GPLv2 compliant, out-of-tree proprietary modules (PowerVR Rogue GPU Vulkan 1.2 stack and AIC8800 Wi-Fi 6 / Bluetooth 5.4 FullMAC drivers) are hosted outside git as free pre-compiled binary packages at [**drivers.raccoon.ing**](https://drivers.raccoon.ing).  
 >  
-> <a href="https://buymeacoffee.com/jonas5/e/588598" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="46" style="height: 46px !important;"></a>
+> <a href="https://buymeacoffee.com/jonas5" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="46" style="height: 46px !important;"></a>
 
 ---
 
