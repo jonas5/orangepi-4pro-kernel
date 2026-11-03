@@ -50,7 +50,7 @@ Current validation is based primarily on the Orange Pi 4 Pro.
 | PCIe / NVMe | 🚧 | Reads drive over PCIe lane; direct NVMe boot not supported yet (pending U-Boot patch; separate OS images required) |
 | UFS | 🚧 | Controller initialization under development |
 | Hardware Video Decode Validation | 🚧 | Cedrus VA-API port in progress |
-| NPU Support | 🚧 | NPU driver and userspace runtime research |
+| NPU Support | 🔄 | Kernel driver (`vipcore.ko`) ported from BSP 6.6 to Linux 6.18 with DTS bindings; userspace runtime research in progress |
 | Suspend/Resume | ❌ / ⏳ | Wi-Fi module does not support suspend/resume (causes packet loss after resume); PMIC sequencing under evaluation |
 | Upstream Kernel Work | 🚧 | CCU, PMIC & DT patch series preparation for LKML |
 
