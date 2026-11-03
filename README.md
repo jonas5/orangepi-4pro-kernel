@@ -1,10 +1,14 @@
 # Allwinner A733 Linux Support — Mainline Linux 6.18 Baseline
 
 <p align="left">
-  <a href="https://github.com/jonas5/Allwinner-A733-kernel/actions/workflows/daily.yml"><img src="https://github.com/jonas5/Allwinner-A733-kernel/actions/workflows/daily.yml/badge.svg" alt="Daily Build &amp; Release" style="max-width: 100%;"></a>
+  <a href="https://github.com/jonas5/Allwinner-A733-kernel/actions/workflows/daily.yml"><img src="https://github.com/jonas5/Allwinner-A733-kernel/actions/workflows/daily.yml/badge.svg" alt="Daily Build &amp; Release (Ubuntu / Debian Bookworm)" style="max-width: 100%;"></a>
   <a href="https://github.com/jonas5/Allwinner-A733-kernel/actions/workflows/daily-trixie.yml"><img src="https://github.com/jonas5/Allwinner-A733-kernel/actions/workflows/daily-trixie.yml/badge.svg" alt="Daily Build &amp; Release (Debian Trixie)" style="max-width: 100%;"></a>
-  <a href="https://github.com/jonas5/orangepi-4pro-kali/actions/workflows/build-kali-image.yml"><img src="https://github.com/jonas5/orangepi-4pro-kali/actions/workflows/build-kali-image.yml/badge.svg" alt="Build &amp; Release Kali Linux Image" style="max-width: 100%;"></a>
+  <a href="https://github.com/jonas5/Allwinner-A733-kernel/releases"><img src="https://img.shields.io/badge/Ubuntu%2024.04%20LTS-minimal%20%7C%20server%20%7C%20desktop-brightgreen?logo=ubuntu&logoColor=white" alt="Ubuntu 24.04 LTS Flavour Releases"></a>
+  <a href="https://github.com/jonas5/Allwinner-A733-kernel/releases"><img src="https://img.shields.io/badge/Debian%2012%20Bookworm-minimal%20%7C%20server%20%7C%20desktop-brightgreen?logo=debian&logoColor=white" alt="Debian 12 Bookworm Flavour Releases"></a>
+  <a href="https://github.com/jonas5/Allwinner-A733-kernel/releases"><img src="https://img.shields.io/badge/Debian%2013%20Trixie-minimal%20%7C%20server%20%7C%20desktop-brightgreen?logo=debian&logoColor=white" alt="Debian 13 Trixie Flavour Releases"></a>
+  <a href="https://github.com/jonas5/Allwinner-A733-kernel/releases"><img src="https://img.shields.io/badge/Arch%20Linux%20ARM-rolling%20release-brightgreen?logo=archlinux&logoColor=white" alt="Arch Linux ARM Rolling Release"></a>
 </p>
+
 
 
 This repository provides the working mainline Linux **6.18.y** kernel baseline, device trees, patches, and automated GitHub Actions workflows for the **Orange Pi 4 Pro (Allwinner A733 / `sun60iw2`)**.
