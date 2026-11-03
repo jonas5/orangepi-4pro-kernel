@@ -39,6 +39,7 @@ fi
 
 RELEASE="${1:-noble}"
 FLAVOUR="${2:-minimal}"
+TARGET_STORAGE="${3:-sd}"  # Options: sd, nvme, both
 
 # Bypass host OS checks on non-Ubuntu hosts (e.g. Debian 13 Trixie)
 export NO_HOST_RELEASE_CHECK=yes
@@ -116,6 +117,9 @@ cp -v "${REPO_ROOT}/patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch
 cp -v "${REPO_ROOT}/patch/0300-packaging-armbian-builddeb.patch" "${HARNESS_DIR}/external/patch/kernel/sun60iw2-next/"
 cp -v "${REPO_ROOT}/patch/0003-allwinner-a733-cedrus-vpu-support.patch" "${HARNESS_DIR}/external/patch/kernel/sun60iw2-next/"
 
+mkdir -p "${HARNESS_DIR}/external/patch/u-boot/v2018.05-sun60iw2"
+cp -v "${REPO_ROOT}/patch/0100-uboot-sun60iw2-a733-pcie-nvme-boot-support.patch" "${HARNESS_DIR}/external/patch/u-boot/v2018.05-sun60iw2/"
+
 mkdir -p "${HARNESS_DIR}/external/config/kernel"
 cp -v "${REPO_ROOT}/config/orangepi_4pro_defconfig" "${HARNESS_DIR}/external/config/kernel/linux-sun60iw2-next-a733.config"
 
@@ -134,6 +138,28 @@ cd "${HARNESS_DIR}"
     NO_HOST_RELEASE_CHECK=yes \
     EXPERT=yes \
     ${DESKTOP_ENV_ARGS[@]+"${DESKTOP_ENV_ARGS[@]}"}
+
+if [[ "${TARGET_STORAGE}" == "nvme" || "${TARGET_STORAGE}" == "both" ]]; then
+    echo "[*] Generating Standalone NVMe SSD Image..."
+    BASE_IMG=$(find "${HARNESS_DIR}/output/images/" -maxdepth 2 -name "*.img" | grep -v "nvme" | head -n 1)
+    if [ -n "$BASE_IMG" ] && [ -f "$BASE_IMG" ]; then
+        NVME_IMG="${BASE_IMG%.img}-nvme.img"
+        echo "Converting $BASE_IMG to NVMe image: $NVME_IMG"
+        cp -v "$BASE_IMG" "$NVME_IMG"
+
+        LOOP=$(losetup -Pf --show "$NVME_IMG")
+        mkdir -p /mnt/nvme-local-build
+        mount "${LOOP}p1" /mnt/nvme-local-build
+
+        sed -i 's|rootdev=.*|rootdev=/dev/nvme0n1p1|g' /mnt/nvme-local-build/boot/orangepiEnv.txt || true
+        sed -i 's|/dev/mmcblk0p1|/dev/nvme0n1p1|g' /mnt/nvme-local-build/etc/fstab || true
+
+        sync
+        umount /mnt/nvme-local-build
+        losetup -d "$LOOP"
+        echo "[✓] Standalone NVMe SSD image generated: $NVME_IMG"
+    fi
+fi
 
 echo "========================================================================"
 echo " [✓] Build completed! Check ${HARNESS_DIR}/output/images/ for artifacts."
