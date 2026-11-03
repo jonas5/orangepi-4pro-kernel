@@ -45,7 +45,27 @@ All generated OS images come with pre-configured default credentials and automat
 
 ---
 
-## 3. Design Principles: Modular Base Image
+## 3. Supported Boards & Hardware Ecosystem
+
+The objective of this project is to provide and maintain modern Linux support for the broader **Allwinner A733 platform** across multiple hardware vendors rather than a single board implementation.
+
+Comprehensive validation status, hardware feature tests, and benchmarks are tracked in [**`boards.md`**](boards.md).
+
+| Board | Vendor | SoC | Status | Notes |
+| :--- | :--- | :--- | :--- | :--- |
+| **Orange Pi 4 Pro** | Orange Pi / Xunlong | Allwinner A733 | ✅ Validated | Primary reference development platform |
+| **Banana Pi BPI-M8** | Banana Pi | Allwinner A733 | 🔄 Hardware Incoming | Collaboration accepted, awaiting board |
+| **Radxa Cubie A7A** | Radxa | Allwinner A733 | 🔄 Hardware Incoming | Collaboration accepted, awaiting board |
+| **Orange Pi Zero 3W** | Orange Pi / Xunlong | Allwinner A733 | ⏳ Awaiting Hardware | Support expected but not validated |
+| **Radxa Cubie A7S** | Radxa | Allwinner A733 | ⏳ Not Tested | Potential future target |
+| **Radxa Cubie A7Z** | Radxa | Allwinner A733 | ⏳ Not Tested | Potential future target |
+
+> **Status Legend**: ✅ Validated &bull; 🔄 Hardware incoming / validation in progress &bull; ⏳ Awaiting hardware or testing &bull; 🚧 Under development  
+> See [**`boards.md`**](boards.md) for full benchmark results (Sysbench, LPDDR5 bandwidth, Qwen2.5 local LLM tokens/sec) and vendor acknowledgements.
+
+---
+
+## 4. Design Principles: Modular Base Image
 
 To enable clean, reproducible builds in GitHub Actions workflows without bundling out-of-tree or vendor drivers into the kernel image:
 
@@ -71,7 +91,7 @@ To enable clean, reproducible builds in GitHub Actions workflows without bundlin
 
 ---
 
-## 4. Repository Structure
+## 5. Repository Structure
 
 ```text
 ├── .github/
@@ -103,7 +123,7 @@ To enable clean, reproducible builds in GitHub Actions workflows without bundlin
 
 ---
 
-## 5. Multi-Distribution & Flavour Support
+## 6. Multi-Distribution & Flavour Support
 
 This repository supports building the full stack of **Ubuntu**, **Debian**, and **Arch Linux ARM** releases across **Minimal**, **Server**, and **Desktop (XFCE, GNOME, MATE)** flavours:
 
@@ -131,7 +151,7 @@ This repository supports building the full stack of **Ubuntu**, **Debian**, and 
 
 ---
 
-## 6. Building with GitHub Actions CI
+## 7. Building with GitHub Actions CI
 
 The unified daily pipeline (`.github/workflows/daily.yml`) supports on-demand builds for any distribution and flavour:
 
@@ -146,7 +166,7 @@ The unified daily pipeline (`.github/workflows/daily.yml`) supports on-demand bu
 
 ---
 
-## 7. Local Build Instructions
+## 8. Local Build Instructions
 
 ### Using the Unified Local Image Builder (`scripts/build-os-image.sh`):
 You can build any Ubuntu, Debian, or Arch Linux image directly on your local machine:
@@ -190,5 +210,5 @@ make -j$(nproc) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- Image dtbs modules
 
 ---
 
-## 8. License
+## 9. License
 Kernel patches and device trees are dual-licensed under GPL-2.0 and MIT.
