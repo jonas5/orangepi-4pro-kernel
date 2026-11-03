@@ -1,4 +1,4 @@
-# Orange Pi 4 Pro (Allwinner A733) — Mainline Linux 6.18 Baseline
+# Allwinner A733 Linux Support — Mainline Linux 6.18 Baseline
 
 This repository provides the working mainline Linux **6.18.y** kernel baseline, device trees, patches, and automated GitHub Actions workflows for the **Orange Pi 4 Pro (Allwinner A733 / `sun60iw2`)**.
 
