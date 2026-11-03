@@ -1,0 +1,260 @@
+# License-Identifier: GPL-2.0
+# Linux build file for viplite kernel space
+#
+
+
+MODULE_NAME ?= vipcore
+
+export USE_LINUX_PLATFORM_DEVICE=1
+export AUTO_CORRECT_CONFLICTS=1
+export PLATFORM_NAME=allwinner
+
+
+ccflags-y += -Wno-unused-function -Wno-error -Wno-missing-prototypes -Wno-missing-declarations
+ccflags-y += -I$(src) \
+				-I$(src)/inc \
+				-I$(src)/memory \
+				-I$(src)/os/linux \
+				-I$(src)/os/linux/allocator \
+				-I$(src)/os/linux/platform/$(PLATFORM_NAME) \
+				-I$(src)/task
+
+OBJS := vip_drv_interface.o \
+        vip_drv_hardware.o \
+        vip_drv_device.o \
+        vip_drv_context.o \
+        vip_drv_debug.o \
+        vip_drv_util.o \
+        vip_drv_pm.o \
+        memory/vip_drv_mem_heap.o \
+        memory/vip_drv_mmu.o \
+        memory/vip_drv_video_memory.o \
+        memory/vip_drv_mem_allocator.o \
+        task/vip_drv_task_descriptor.o \
+        task/vip_drv_task_schedule.o \
+        task/vip_drv_task_parallel_async.o \
+        task/vip_drv_task_serial_sync.o \
+        task/vip_drv_task_parallel_sync.o \
+        task/vip_drv_task_single.o \
+        task/vip_drv_task_common.o \
+        task/vip_drv_task_debug.o \
+        os/linux/vip_drv_device_driver.o \
+        os/linux/vip_drv_os.o \
+        os/linux/vip_drv_os_debug.o \
+        os/linux/allocator/vip_drv_mem_allocator_common.o \
+        os/linux/allocator/vip_drv_mem_allocator_heap_reserved.o \
+        os/linux/allocator/vip_drv_mem_allocator_heap_exclusive.o \
+        os/linux/allocator/vip_drv_mem_allocator_continue.o \
+        os/linux/allocator/vip_drv_mem_allocator_segment_continue.o \
+        os/linux/allocator/vip_drv_mem_allocator_gfp.o \
+        os/linux/allocator/vip_drv_mem_allocator_cma.o \
+        os/linux/allocator/vip_drv_mem_allocator_ion.o \
+        os/linux/allocator/vip_drv_mem_allocator_wrap_user_physical.o \
+        os/linux/allocator/vip_drv_mem_allocator_wrap_user_memory.o \
+        os/linux/allocator/vip_drv_mem_allocator_wrap_dma_buf.o
+
+#platform
+ifeq ($(CONFIG_NPU_USER_IOMMU), )
+export NPU_USER_IOMMU=0
+else
+export NPU_USER_IOMMU=1
+endif
+
+
+ifeq ($(SOC_CONFIG), )
+OBJS += os/linux/platform/$(PLATFORM_NAME)/vip_drv_device_platform.o
+else
+OBJS += os/linux/platform/$(PLATFORM_NAME)/vip_drv_device_platform_$(SOC_CONFIG).o
+endif
+
+
+#Include platform config if exists.
+-include $(src)/os/linux/platform/$(PLATFORM_NAME)/platform.mk
+
+ifeq ($(NPU_USER_IOMMU), 1)
+	OBJS+= $(src)/os/linux/platform/$(PLATFORM_NAME)/gc_vip_kernel_ion.o
+endif
+
+#NOTE:
+#please configure CONFIG_DEBUG_INFO is not set if want to build vipcore.ko release version.
+
+
+.PHONY: all clean install
+
+# Define targets.
+all:
+	@$(MAKE) V=$(V) ARCH=$(ARCH_TYPE) -C $(KERNEL_DIR) M=`pwd` modules
+
+clean:
+	@rm -rf $(OBJS)
+	@rm -rf modules.order Module.symvers .tmp_versions $(MODULE_NAME).mod.o $(MODULE_NAME).mod.c $(MODULE_NAME).ko $(MODULE_NAME).o
+	@find $(VIPLITE_ROOT) -name "*.o" | xargs rm -f
+	@find $(VIPLITE_ROOT) -name "*.d" | xargs rm -f
+	@find $(VIPLITE_ROOT) -name "*.mod" | xargs rm -f
+	@find $(VIPLITE_ROOT) -name ".*.cmd" | xargs rm -f
+	@rm -f $(SDK_DIR)/drivers/$(MODULE_NAME).ko
+
+install: all
+	@mkdir -p $(SDK_DIR)/drivers
+	@cp $(MODULE_NAME).ko $(SDK_DIR)/drivers
+
+
+ccflags-y += -DLINUX -DDRIVER
+
+# NPU USE IOMMU
+ifeq ($(NPU_USER_IOMMU), 1)
+ccflags-y += -DNPU_USER_IOMMU=1
+else ifeq ($(NPU_USER_IOMMU), 0)
+ccflags-y += -DNPU_USER_IOMMU=0
+endif
+
+ifeq ($(FLAREON),1)
+ccflags-y += -DFLAREON
+endif
+
+ifeq ($(DEBUG), 1)
+ccflags-y += -DDBG=1 -DDEBUG -D_DEBUG -DvpmdENABLE_DEBUG_LOG=4
+else
+ccflags-y += -DDBG=0
+endif
+
+ifeq ($(USE_LINUX_PCIE_DEVICE), 1)
+ccflags-y += -DUSE_LINUX_PCIE_DEVICE
+ifneq ($(REGISTER_PCIE_DRIVER), )
+ccflags-y += -DvpmdREGISTER_PCIE_DRIVER=$(REGISTER_PCIE_DRIVER)
+endif
+else ifeq ($(USE_LINUX_PLATFORM_DEVICE), 1)
+ccflags-y += -DUSE_LINUX_PLATFORM_DEVICE
+endif
+
+ifneq ($(FPGA_BUILD), )
+ccflags-y += -DvpmdFPGA_BUILD=$(FPGA_BUILD)
+endif
+
+ifeq ($(USE_LINUX_CMA), 1)
+ccflags-y += -DUSE_LINUX_CMA
+endif
+
+ifeq ($(USE_LINUX_MEM_ION), 1)
+ccflags-y += -DUSE_LINUX_MEM_ION
+endif
+
+ifneq ($(USE_AGENT), )
+ccflags-y += -DvpmdENABLE_USE_AGENT_TRIGGER=$(USE_AGENT)
+endif
+
+
+ifeq ($(NPU_USER_IOMMU), 1)
+	ifeq ($(DISABLE_MMU), 1)
+	ccflags-y += -DvpmdENABLE_MMU=0
+	endif
+else
+	ifneq ($(ENABLE_MMU), )
+	ccflags-y += -DvpmdENABLE_MMU=$(ENABLE_MMU)
+	endif
+endif
+
+ifneq ($(ENABLE_40BITVA), )
+ccflags-y += -DvpmdENABLE_40BITVA=$(ENABLE_40BITVA)
+endif
+
+ifeq ($(DISABLE_CREATE_BUF_FD),1)
+ccflags-y += -DvpmdENABLE_CREATE_BUF_FD=0
+endif
+
+ifneq ($(ENABLE_SYS_MEMORY_HEAP), )
+ccflags-y += -DvpmdENABLE_SYS_MEMORY_HEAP=$(ENABLE_SYS_MEMORY_HEAP)
+endif
+
+ifneq ($(ENABLE_VIDEO_MEMORY_HEAP), )
+ccflags-y += -DvpmdENABLE_VIDEO_MEMORY_HEAP=$(ENABLE_VIDEO_MEMORY_HEAP)
+endif
+
+ifneq ($(ENABLE_VIDEO_MEMORY_DYNAMIC), )
+ccflags-y += -DvpmdENABLE_VIDEO_MEMORY_DYNAMIC=$(ENABLE_VIDEO_MEMORY_DYNAMIC)
+endif
+
+ifneq ($(POWER_OFF_TIMEOUT), )
+ccflags-y += -DvpmdPOWER_OFF_TIMEOUT=$(POWER_OFF_TIMEOUT)
+endif
+
+ifneq ($(HARDWARE_RECOVERY), )
+ccflags-y += -DvpmdENABLE_RECOVERY=$(HARDWARE_RECOVERY)
+endif
+
+ifneq ($(NODE_MEMORY_IN_HEAP), )
+ccflags-y += -DvpmdNODE_MEMORY_IN_HEAP=$(NODE_MEMORY_IN_HEAP)
+endif
+
+ifneq ($(AUTO_CORRECT_CONFLICTS), )
+ccflags-y += -DvpmdAUTO_CORRECT_CONFLICTS=$(AUTO_CORRECT_CONFLICTS)
+endif
+
+ifneq ($(ENABLE_MULTIPLE_TASK), )
+ccflags-y += -DvpmdENABLE_MULTIPLE_TASK=$(ENABLE_MULTIPLE_TASK)
+endif
+
+ifneq ($(ENABLE_RESERVE_PHYSICAL), )
+ccflags-y += -DvpmdENABLE_RESERVE_PHYSICAL=$(ENABLE_RESERVE_PHYSICAL)
+endif
+
+ifneq ($(LIUNX_USE_MEM_WRITE_COMBINE), )
+ccflags-y += -DLIUNX_USE_MEM_WRITE_COMBINE
+endif
+
+ifneq ($(ENABLE_SUSPEND_RESUME), )
+ccflags-y += -DvpmdENABLE_SUSPEND_RESUME=$(ENABLE_SUSPEND_RESUME)
+endif
+
+ifneq ($(ENABLE_REDUCE_MEMORY), )
+ccflags-y += -DvpmdENABLE_REDUCE_MEMORY=$(ENABLE_REDUCE_MEMORY)
+endif
+
+ifneq ($(ENABLE_POLLING), )
+ccflags-y += -DvpmdENABLE_POLLING=$(ENABLE_POLLING)
+endif
+
+ifneq ($(ENABLE_PREEMPTION), )
+ccflags-y += -DvpmdENABLE_PREEMPTION=$(ENABLE_PREEMPTION)
+endif
+
+ifneq ($(ENABLE_CHECKSUM), )
+ccflags-y += -DvpmdENABLE_CHECKSUM=$(ENABLE_CHECKSUM)
+endif
+
+ifneq ($(HARDWARE_BYPASS_MODE), )
+ccflags-y += -DvpmdHARDWARE_BYPASS_MODE=$(HARDWARE_BYPASS_MODE)
+endif
+
+ifneq ($(PRELOAD_COEFF), )
+ccflags-y += -DvpmdPRELOAD_COEFF=$(PRELOAD_COEFF)
+endif
+
+ifneq ($(DUMP_NBG_RESOURCE), )
+ccflags-y += -DvpmdDUMP_NBG_RESOURCE=$(DUMP_NBG_RESOURCE)
+endif
+
+ifneq ($(ENABLE_FUSA), )
+ccflags-y += -DvpmdENABLE_FUSA=$(ENABLE_FUSA)
+OBJS += vip_drv_fusa.o
+endif
+
+ifneq ($(TASK_CMD_DUMP), )
+ccflags-y += -DvpmdTASK_CMD_DUMP=$(TASK_CMD_DUMP)
+endif
+
+ifneq ($(ENABLE_LAYER_DUMP), )
+ccflags-y += -DvpmdENABLE_LAYER_DUMP=$(ENABLE_LAYER_DUMP)
+endif
+
+ifneq ($(ENABLE_NPD), )
+ccflags-y += -DvpmdENABLE_NPD=$(ENABLE_NPD)
+endif
+
+obj-$(CONFIG_AW_NNA_VIP) = $(MODULE_NAME).o
+
+$(MODULE_NAME)-objs  = $(OBJS)
+
+
+#only for checking driver build option
+-include $(src)/check.Kbuild
