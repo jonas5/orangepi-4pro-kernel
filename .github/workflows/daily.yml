@@ -422,26 +422,42 @@ jobs:
 
           ### Verification:
           Integrity checksums are provided in \`SHA256SUMS\` and matching \`.sha256\` files for each asset.
-          UPSTREAM_KERNEL=$(git ls-remote https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git refs/heads/linux-6.18.y 2>/dev/null | awk '{print $1}' || echo "unknown")
-          echo "<!-- BUILD_STAMP: KERNEL=${UPSTREAM_KERNEL} REPO=${GITHUB_SHA} -->" >> release_notes.md
           EOF
           sed -i 's/^[[:space:]]*//' release_notes.md
 
+          UPSTREAM_KERNEL=$(git ls-remote https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git refs/heads/linux-6.18.y 2>/dev/null | awk '{print $1}' || echo "unknown")
+          echo "<!-- BUILD_STAMP: KERNEL=${UPSTREAM_KERNEL} REPO=${GITHUB_SHA} -->" >> release_notes.md
+
           echo "Publishing release: tag=$TAG, title='$TITLE'..."
           set +e
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG exists, updating release notes and uploading assets..."
-            gh release edit "$TAG" --title "$TITLE" --notes-file release_notes.md $PRERELEASE_FLAG
-            gh release upload "$TAG" release_artifacts/* --clobber 2>&1 | tee /tmp/release_upload.log
-            RC=${PIPESTATUS[0]}
-          else
-            echo "Creating new release $TAG..."
-            gh release create "$TAG" release_artifacts/* \
-              --title "$TITLE" \
-              --notes-file release_notes.md \
-              $PRERELEASE_FLAG 2>&1 | tee /tmp/release_upload.log
-            RC=${PIPESTATUS[0]}
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG does not exist, creating..."
+            gh release create "$TAG" --title "$TITLE" --notes-file release_notes.md $PRERELEASE_FLAG
           fi
+
+          echo "Updating release metadata for $TAG..."
+          gh release edit "$TAG" --title "$TITLE" --notes-file release_notes.md $PRERELEASE_FLAG
+
+          echo "Uploading release artifacts individually with retry..."
+          UPLOAD_FAILED=0
+          for asset in release_artifacts/*; do
+            [ -f "$asset" ] || continue
+            echo "Uploading $(basename "$asset")..."
+            UPLOAD_SUCCESS=0
+            for attempt in 1 2 3; do
+              if gh release upload "$TAG" "$asset" --clobber 2>&1 | tee -a /tmp/release_upload.log; then
+                UPLOAD_SUCCESS=1
+                break
+              fi
+              echo "Upload failed (attempt $attempt/3), retrying in 5 seconds..."
+              sleep 5
+            done
+            if [ $UPLOAD_SUCCESS -ne 1 ]; then
+              echo "Failed to upload $asset after 3 attempts"
+              UPLOAD_FAILED=1
+            fi
+          done
+          RC=$UPLOAD_FAILED
 
           if [ $RC -ne 0 ]; then
             echo "### Release Publishing Encountered an Issue" >> $GITHUB_STEP_SUMMARY
