@@ -9,7 +9,7 @@ the sun60iw2p1-soc-system device tree so the A733 defconfig can be used.
 
 Signed-off-by: Jonas <developer@raccoon.ing>
 
-diff --git a/u-boot/v2018.05-sun60iw2/arch/arm/dts/sun60iw2p1-orangepi-4-pro.dts b/u-boot/v2018.05-sun60iw2/arch/arm/dts/sun60iw2p1-orangepi-4-pro.dts
+diff --git a/external/packages/pack-uboot/sun60iw2/arch/arm/dts/sun60iw2p1-orangepi-4-pro.dts b/external/packages/pack-uboot/sun60iw2/arch/arm/dts/sun60iw2p1-orangepi-4-pro.dts
 new file mode 100644
 --- /dev/null
 +++ b/u-boot/v2018.05-sun60iw2/arch/arm/dts/sun60iw2p1-orangepi-4-pro.dts
