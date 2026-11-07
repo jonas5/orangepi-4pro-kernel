@@ -1,3 +1,4 @@
+<code>
 [76]HELLO! BOOT0 is starting!
 [79]BOOT0 commit : {4721ad08}
 [82]board gpio withstand voltage auto mode
@@ -598,3 +599,4 @@ orangepi4pro login: orangepi (automatic login)
  \___/|_|   |_|    |_|   |_|   |_|  \___/
 
 Welcome to Orange Pi 1.1.0 Noble with Linux 6.18.58-sun60iw2
+</code>
