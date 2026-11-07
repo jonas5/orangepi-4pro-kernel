@@ -137,6 +137,7 @@ jobs:
           git clone --depth 1 https://github.com/orangepi-xunlong/orangepi-build.git orangepi-build
 
       - name: Copy boot0 UART fix script
+          mkdir -p orangepi-build/external/packages/pack-uboot/sun60iw2/arch/arm/dts
         if: steps.check-kernel.outputs.should_skip != 'true' && github.event.inputs.reuse_run_id == ''
         run: |
           mkdir -p orangepi-build/external/packages/pack-uboot/sun60iw2/tools
