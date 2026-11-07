@@ -142,15 +142,22 @@ jobs:
           # Apply orangepi-build harness patch
           git -C orangepi-build apply ../patch/orangepi-build.patch
 
+          # Apply Orange Pi 4 Pro A733 U-Boot boot config
+          git -C orangepi-build apply ../patch/0101-uboot-sun60iw2-a733-bootconfig.patch
+
+          # Apply A733 boot0 debug UART pin mux fix
+          git -C orangepi-build apply ../patch/0103-uboot-sun60iw2-a733-boot0-uart.patch
+
           # Copy unified mainline kernel patch & builddeb packaging patch
           mkdir -p orangepi-build/external/patch/kernel/sun60iw2-next
           cp patch/0001-allwinner-a733-orangepi-4-pro-6.18-mainline.patch orangepi-build/external/patch/kernel/sun60iw2-next/
           cp patch/0300-packaging-armbian-builddeb.patch orangepi-build/external/patch/kernel/sun60iw2-next/
           cp patch/0003-allwinner-a733-cedrus-vpu-support.patch orangepi-build/external/patch/kernel/sun60iw2-next/
 
-          # Copy U-Boot NVMe / PCIe distro boot patch
-          mkdir -p orangepi-build/external/patch/u-boot/v2018.05-sun60iw2
-          cp patch/0100-uboot-sun60iw2-a733-pcie-nvme-boot-support.patch orangepi-build/external/patch/u-boot/v2018.05-sun60iw2/
+          # Copy U-Boot A733 boot patches (defconfig + board DTS)
+          mkdir -p orangepi-build/external/patch/u-boot/u-boot-sunxi
+          cp patch/0100-uboot-sun60iw2-a733-pcie-nvme-boot-support.patch orangepi-build/external/patch/u-boot/u-boot-sunxi/
+          cp patch/0102-uboot-sun60iw2-a733-dts-add-board-dts.patch orangepi-build/external/patch/u-boot/u-boot-sunxi/
 
           # Copy modular defconfig
           mkdir -p orangepi-build/external/config/kernel

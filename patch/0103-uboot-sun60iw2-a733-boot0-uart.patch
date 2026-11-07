@@ -1,0 +1,25 @@
+From: Jonas <developer@raccoon.ing>
+Date: Sat, 7 Nov 2026 10:10:00 +0000
+Subject: [PATCH] uboot: sun60iw2: route debug UART to PB9/PB10 for A733 boot blobs
+
+The prebuilt A733 boot0 blobs shipped in the Orange Pi 4 Pro packaging bake
+the debug UART (UART0) onto PB0/PB1 (mux 3), while the boards route the debug
+UART to PB9/PB10 (mux 2) as configured in sys_config.fex.
+
+Patch the boot0 private head UART pin mux (PB9/PB10, mux 2) and repair the
+eGON checksum so the BROM accepts the image.
+
+diff --git a/external/config/sources/families/sun60iw2.conf b/external/config/sources/families/sun60iw2.conf
+--- a/external/config/sources/families/sun60iw2.conf
++++ b/external/config/sources/families/sun60iw2.conf
+@@ -272,5 +272,10 @@ uboot_custom_postprocess()
+ 		fi
+ 
++		# The prebuilt A733 boot0 blobs route UART0 to PB0/PB1 (mux 3),
++		# but these boards use PB9/PB10 (mux 2) for the debug UART.
++		"${EXTER}/packages/pack-uboot/${BOARDFAMILY}/tools/fix_boot0_uart" \
++			./boot0_sdcard.fex ./boot0_ufs.fex ./boot0_spinor_a733.fex
++
+ 		cp sys_config/sys_config.fex sys_config.fex
+ 		cp u-boot.bin u-boot.fex
+ 		cp dts/u-boot-current.dts dts/${BOARD}-u-boot.dts

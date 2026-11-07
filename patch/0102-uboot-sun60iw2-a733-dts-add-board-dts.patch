@@ -1,0 +1,17 @@
+From: Jonas <developer@raccoon.ing>
+Date: Sat, 7 Nov 2026 10:05:00 +0000
+Subject: [PATCH] u-boot: add sun60iw2p1-orangepi-4-pro device tree
+
+The Allwinner A733 U-Boot defconfig (sun60iw2p1_a733_defconfig) selects the
+sun60iw2p1-orangepi-4-pro device tree, which is not part of the
+v2018.05-sun60iw2 U-Boot source tree.  Provide it as a thin wrapper around
+the sun60iw2p1-soc-system device tree so the A733 defconfig can be used.
+
+Signed-off-by: Jonas <developer@raccoon.ing>
+
+diff --git a/u-boot/v2018.05-sun60iw2/arch/arm/dts/sun60iw2p1-orangepi-4-pro.dts b/u-boot/v2018.05-sun60iw2/arch/arm/dts/sun60iw2p1-orangepi-4-pro.dts
+new file mode 100644
+--- /dev/null
++++ b/u-boot/v2018.05-sun60iw2/arch/arm/dts/sun60iw2p1-orangepi-4-pro.dts
+@@ -0,0 +1 @@
++#include "sun60iw2p1-soc-system.dts"

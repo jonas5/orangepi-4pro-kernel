@@ -1,0 +1,21 @@
+From: Jonas <developer@raccoon.ing>
+Date: Sat, 7 Nov 2026 10:00:00 +0000
+Subject: [PATCH] board(orangepi4pro): boot with the Allwinner A733 U-Boot defconfig
+
+Point the Orange Pi 4 Pro boot configuration at the Allwinner A733 U-Boot
+defconfig (sun60iw2p1_a733_defconfig) instead of the generic T736 defconfig,
+so the bootloader, its device tree and its PCI/NVMe configuration match the
+A733 SoC that the board actually implements.
+
+Signed-off-by: Jonas <developer@raccoon.ing>
+
+diff --git a/external/config/boards/orangepi4pro.conf b/external/config/boards/orangepi4pro.conf
+--- a/external/config/boards/orangepi4pro.conf
++++ b/external/config/boards/orangepi4pro.conf
+@@ -1,5 +1,5 @@
+ # Allwinner A733 quad core 2GB/4GB/8GB/16GB RAM
+ BOARD_NAME="Orange Pi 4 Pro"
+ BOARDFAMILY="sun60iw2"
+-BOOTCONFIG="sun60iw2p1_t736_defconfig"
++BOOTCONFIG="sun60iw2p1_a733_defconfig"
+ BOOT_LOGO="desktop"
