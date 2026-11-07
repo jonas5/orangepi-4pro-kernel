@@ -1,0 +1,53 @@
+#!/usr/bin/env python3
+#
+# Fix the debug UART pin mux in a prebuilt Allwinner boot0 image and
+# repair its eGON checksum.
+#
+# boot0's private head (include/private_boot0.h) stores the debug UART
+# as two normal_gpio_cfg entries at offsets 0xbc and 0xc4.  The A733
+# vendor blobs ship with UART0 on PB0/PB1 (mux 3), while these boards
+# route the debug UART to PB9/PB10 (mux 2), as described by
+# sys_config.fex.  The eGON checksum at 0x0c must be recomputed after
+# changing any byte, otherwise the BROM rejects the image.
+#
+import struct
+import sys
+
+CHECKSUM_OFFSET = 0x0C
+UART_CTRL_OFFSETS = (0xBC, 0xC4)
+UART_PINS = ((0x09, 0x02), (0x0A, 0x02))  # PB9 / PB10, mux 2
+STAMP_VALUE = 0x5F0A6C39
+
+def fix(path):
+    with open(path,  rb) as fh:
+        data = bytearray(fh.read())
+
+    if len(data) < 0xD0:
+        print(%s: too short for a boot0 image skipped % path, file=sys.stderr)
+        return 1
+    if len(data) % 4:
+        print(%s: size is not 4-byte aligned skipped % path, file=sys.stderr)
+        return 1
+
+    for offset, (port_num, mux) in zip(UART_CTRL_OFFSETS, UART_PINS):
+        data[offset + 1] = port_num
+        data[offset + 2] = mux
+
+    data[CHECKSUM_OFFSET:CHECKSUM_OFFSET + 4] = b\0\0\0\0
+    words = struct.unpack_from(<%dI % (len(data) // 4), data, 0)
+    checksum = (STAMP_VALUE + sum(words)) & 0xFFFFFFFF
+    struct.pack_into(<I, data, CHECKSUM_OFFSET, checksum)
+
+    with open(path, wb) as fh:
+        fh.write(data)
+
+    return 0
+
+def main(argv):
+    if len(argv) < 2:
+        print(usage: %s BOOT0.fex [...] % argv[0], file=sys.stderr)
+        return 2
+    return max(fix(path) for path in argv[1:])
+
+if __name__ == __main__:
+    sys.exit(main(sys.argv))
